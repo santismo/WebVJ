@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>YouTube Overlay VJ (Post FX via Echo Layers)</title>
+  <title>YouTube Overlay VJ (Echo Post FX)</title>
   <style>
     :root{
       --bg:#07080c;
@@ -50,15 +50,20 @@
       border-radius:0; border:none;
     }
 
+    /* IMPORTANT: base + overlay must never be display:none (YT sizing issues). */
     .layer{
       position:absolute; inset:0;
       transform-origin:50% 50%;
       pointer-events:none;
       will-change: transform, filter, opacity;
-      display:none;
+      display:block;
+      opacity:1;
     }
     .layer.base{pointer-events:auto;}
     .layer iframe{width:100%; height:100%; border:0; display:block;}
+
+    /* Only post layers get hidden via .hidden */
+    .hidden{display:none !important;}
 
     .playOverlay{
       position:absolute; inset:0;
@@ -78,7 +83,7 @@
       border:1px solid rgba(122,162,255,.6);
     }
 
-    /* Pseudo fullscreen fallback (iOS) */
+    /* iOS-friendly pseudo fullscreen */
     body.pseudo-fs{ overflow:hidden; }
     body.pseudo-fs .wrap{ max-width:none; margin:0; padding:0; }
     body.pseudo-fs .topbar, body.pseudo-fs #controlsPanel{ display:none; }
@@ -162,6 +167,7 @@
     .btnGroup{display:flex; gap:10px; flex-wrap:wrap; padding:12px;}
     .btnGroup button{padding:9px 11px; font-size:14px;}
     .small{font-size:12px; color:var(--muted);}
+    .divider{height:1px; background:var(--border); margin:0 12px;}
   </style>
 </head>
 <body>
@@ -170,7 +176,7 @@
       <div>
         <h1>YouTube Overlay VJ</h1>
         <div class="hint">
-          Defaults: 2 videos • overlay blend=<b>difference</b> • invert=<b>max</b> • Post FX presets (off by default) use echo layers
+          Defaults: overlay blend=<b>difference</b> + invert=<b>max</b>. Post FX presets are OFF by default.
         </div>
       </div>
       <div class="btnrow">
@@ -188,12 +194,12 @@
         <button class="hudBtn" id="hudExit">Exit</button>
       </div>
 
-      <!-- 0 = base, 1 = main overlay, 2-4 = post FX echo layers -->
+      <!-- 0=base, 1=overlay, 2-4=post FX echoes -->
       <div id="layer0" class="layer base"></div>
       <div id="layer1" class="layer"></div>
-      <div id="layer2" class="layer"></div>
-      <div id="layer3" class="layer"></div>
-      <div id="layer4" class="layer"></div>
+      <div id="layer2" class="layer hidden"></div>
+      <div id="layer3" class="layer hidden"></div>
+      <div id="layer4" class="layer hidden"></div>
 
       <div class="playOverlay" id="playOverlay">
         <button id="tapPlayBtn">Tap to Play</button>
@@ -205,7 +211,7 @@
         <div class="mini">
           <span class="pill">2 main layers</span>
           <span class="pill">+3 post FX echo layers</span>
-          <span class="pill">works on iOS</span>
+          <span class="pill">iOS pseudo-fullscreen fallback</span>
         </div>
         <div class="btnrow">
           <button id="hidePanelBtn" class="ghost">Hide</button>
@@ -213,7 +219,6 @@
       </div>
 
       <div class="panelBody">
-        <!-- SOURCES -->
         <div class="card">
           <div class="cardHead">
             <div class="cardTitle">Sources</div>
@@ -226,6 +231,7 @@
               <input id="url1" type="text">
             </label>
           </div>
+
           <div class="row">
             <label>Base opacity
               <input id="op0" type="range" min="0" max="1" step="0.01" value="1">
@@ -234,6 +240,7 @@
               <input id="op1" type="range" min="0" max="1" step="0.01" value="0.85">
             </label>
           </div>
+
           <div class="row">
             <label>Overlay blend mode
               <select id="blend1"></select>
@@ -242,6 +249,7 @@
               <input id="inv1" type="range" min="0" max="1" step="0.01" value="1">
             </label>
           </div>
+
           <div class="row">
             <label>Overlay contrast
               <input id="ct1" type="range" min="0.5" max="3.0" step="0.01" value="1.4">
@@ -256,34 +264,16 @@
             <button id="muteOvBtn">Unmute overlay</button>
           </div>
           <div class="small" style="padding:0 12px 12px;">
-            Autoplay is attempted muted; unmute usually requires a tap. Post FX layers are always muted.
+            Autoplay is attempted muted. Unmute usually requires a tap. Post FX echoes stay muted.
           </div>
         </div>
 
-        <!-- POST FX -->
         <div class="card">
           <div class="cardHead">
-            <div class="cardTitle">Post FX (Echo Layers)</div>
+            <div class="cardTitle">Post FX Presets (OFF by default)</div>
             <label class="toggle">
               <input id="postOn" type="checkbox">
               Enable Post FX
-            </label>
-          </div>
-
-          <div class="row">
-            <label>Intensity (master)
-              <input id="postAmt" type="range" min="0" max="1" step="0.01" value="0.65">
-            </label>
-            <label>Glitch jitter amount
-              <input id="jitAmt" type="range" min="0" max="1" step="0.01" value="0.35">
-            </label>
-          </div>
-          <div class="row">
-            <label>Glitch jitter speed
-              <input id="jitSpd" type="range" min="0" max="40" step="0.5" value="12">
-            </label>
-            <label>Feedback zoom speed
-              <input id="fbSpd" type="range" min="0" max="6" step="0.05" value="1.0">
             </label>
           </div>
 
@@ -291,18 +281,83 @@
             <button id="presetOff" class="ghost">Clear preset</button>
             <button id="pTrail">Trail Echo</button>
             <button id="pRGB">RGB Shift</button>
-            <button id="pGlitchA">Glitch: Jitter</button>
-            <button id="pGlitchB">Glitch: Slice</button>
+            <button id="pGlitchJit">Glitch: Jitter</button>
+            <button id="pGlitchPop">Glitch: Pop / Flash</button>
             <button id="pFeedback">Feedback Tunnel</button>
+            <button id="pMirror">Mirror / Kaleido-ish</button>
           </div>
+
+          <div class="divider"></div>
+
+          <div class="row">
+            <label>Master intensity
+              <input id="postAmt" type="range" min="0" max="1" step="0.01" value="0.65">
+            </label>
+            <label>Echo opacity multiplier
+              <input id="echoMul" type="range" min="0" max="2" step="0.01" value="1.0">
+            </label>
+          </div>
+
+          <div class="row">
+            <label>Glitch amount
+              <input id="jitAmt" type="range" min="0" max="1" step="0.01" value="0.35">
+            </label>
+            <label>Glitch speed
+              <input id="jitSpd" type="range" min="0" max="40" step="0.5" value="12">
+            </label>
+          </div>
+
+          <div class="row">
+            <label>Feedback zoom base
+              <input id="fbZoomBase" type="range" min="1.00" max="1.12" step="0.001" value="1.03">
+            </label>
+            <label>Feedback zoom step (per echo)
+              <input id="fbZoomStep" type="range" min="0.000" max="0.060" step="0.001" value="0.018">
+            </label>
+          </div>
+
+          <div class="row">
+            <label>Feedback rotation speed (deg/sec)
+              <input id="fbRotSpd" type="range" min="0" max="90" step="0.5" value="12">
+            </label>
+            <label>Feedback drift amount (%)
+              <input id="fbDriftAmt" type="range" min="0" max="8" step="0.1" value="2.0">
+            </label>
+          </div>
+
+          <div class="row">
+            <label>Feedback drift speed
+              <input id="fbDriftSpd" type="range" min="0" max="6" step="0.05" value="1.2">
+            </label>
+            <label>Feedback blur (px)
+              <input id="fbBlur" type="range" min="0" max="10" step="0.1" value="1.4">
+            </label>
+          </div>
+
+          <div class="row">
+            <label>Mirror mode
+              <select id="mirMode">
+                <option value="none">none</option>
+                <option value="mx">mirror X</option>
+                <option value="my">mirror Y</option>
+                <option value="mxy">mirror X+Y</option>
+                <option value="quad">quad (4-way vibe)</option>
+              </select>
+            </label>
+            <label>Mirror rotate (deg)
+              <input id="mirRot" type="range" min="-180" max="180" step="1" value="0">
+            </label>
+          </div>
+
           <div class="small" style="padding:0 12px 12px;">
-            Presets configure Layers 3–5 as duplicates of your overlay and blend them creatively.
+            Note: these are “iframe-safe” illusions using extra echo layers (duplicates), not true pixel-feedback.
           </div>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- YT Iframe API -->
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
     // ---------- Defaults ----------
@@ -314,24 +369,20 @@
       "hard-light","soft-light","difference","exclusion","hue","saturation","color","luminosity"
     ];
 
-    // ---------- Player handles ----------
+    // Players: 0..4
     const players = new Array(5).fill(null);
-    const layerVideoIds = new Array(5).fill(null); // remember which id is loaded in each layer
+    const loadedIds = new Array(5).fill(null);
+
     let mutedBase = true;
     let mutedOv = true;
 
-    // ---------- Post FX state ----------
     const post = {
       enabled: false,
       preset: "none",
-      amt: 0.65,
-      jitAmt: 0.35,
-      jitSpd: 12,
-      fbSpd: 1.0
     };
 
-    // layer config (CSS-only)
-    const cfg = Array.from({length: 5}, (_, i) => ({
+    // Layer config used for CSS transforms/filters
+    const cfg = Array.from({length:5}, () => ({
       enabled: false,
       opacity: 1,
       blend: "normal",
@@ -341,13 +392,13 @@
       sat: 1,
       hue: 0,
       blur: 0,
-      // transforms (percent translate)
       x: 0, y: 0,
       scale: 1,
-      rot: 0
+      rot: 0,
+      flipX: false,
+      flipY: false
     }));
 
-    // ---------- Helpers ----------
     function extractVideoId(url) {
       if (!url) return null;
       const raw = url.trim();
@@ -364,60 +415,79 @@
       return null;
     }
 
-    function mountPlayer(layerIndex, videoId) {
-      const layer = document.getElementById(`layer${layerIndex}`);
-      layer.innerHTML = `<div id="player${layerIndex}"></div>`;
-      return new YT.Player(`player${layerIndex}`, {
+    function destroyPlayer(i) {
+      try { players[i] && players[i].destroy && players[i].destroy(); } catch(e) {}
+      players[i] = null;
+      loadedIds[i] = null;
+      const layer = document.getElementById(`layer${i}`);
+      layer.innerHTML = "";
+    }
+
+    function ensureVisibleForYT(i) {
+      // Ensure container is visible BEFORE mounting player (prevents 0x0 black).
+      const layer = document.getElementById(`layer${i}`);
+      layer.classList.remove("hidden");
+      layer.style.display = "block";
+      layer.style.opacity = "1";
+    }
+
+    function mountPlayer(i, videoId) {
+      ensureVisibleForYT(i);
+
+      const layer = document.getElementById(`layer${i}`);
+      layer.innerHTML = `<div id="player${i}"></div>`;
+
+      const p = new YT.Player(`player${i}`, {
         videoId,
         playerVars: { playsinline: 1, rel: 0 },
         events: {
-          onReady: (e) => {
-            // keep muted for autoplay compatibility
-            try { e.target.mute(); } catch(e) {}
-          }
+          onReady: (e) => { try { e.target.mute(); } catch(err) {} }
         }
       });
-    }
 
-    function destroyPlayer(i) {
-      if (players[i] && players[i].destroy) {
-        try { players[i].destroy(); } catch(e) {}
-      }
-      players[i] = null;
-      layerVideoIds[i] = null;
+      players[i] = p;
+      loadedIds[i] = videoId;
     }
 
     function applyLayerCSS(i) {
       const el = document.getElementById(`layer${i}`);
       const c = cfg[i];
 
-      el.style.display = c.enabled ? "block" : "none";
+      // Base & overlay always visible (0,1). Echo layers toggle.
+      if (i <= 1) {
+        el.classList.remove("hidden");
+      } else {
+        el.classList.toggle("hidden", !c.enabled);
+      }
+
       el.style.opacity = c.opacity;
       el.style.mixBlendMode = c.blend;
+
+      const sx = (c.flipX ? -1 : 1);
+      const sy = (c.flipY ? -1 : 1);
+
       el.style.transform =
-        `translate(${c.x}%, ${c.y}%) scale(${c.scale}) rotate(${c.rot}deg)`;
+        `translate(${c.x}%, ${c.y}%) scale(${c.scale * sx}, ${c.scale * sy}) rotate(${c.rot}deg)`;
 
       el.style.filter =
         `invert(${c.inv}) contrast(${c.ct}) brightness(${c.br}) saturate(${c.sat}) hue-rotate(${c.hue}deg) blur(${c.blur}px)`;
     }
 
     function applyAllCSS() {
-      for (let i = 0; i < 5; i++) applyLayerCSS(i);
-      // only layer0 interactive
-      for (let i = 0; i < 5; i++) {
-        document.getElementById(`layer${i}`).classList.toggle("base", i === 0);
-      }
+      for (let i=0;i<5;i++) applyLayerCSS(i);
+      // layer0 interactive
+      for (let i=0;i<5;i++) document.getElementById(`layer${i}`).classList.toggle("base", i===0);
     }
 
-    function setMainDefaultsFromUI() {
-      // Layer0 base
+    function setMainFromUI() {
+      // base
       cfg[0].enabled = true;
       cfg[0].opacity = parseFloat(document.getElementById("op0").value);
       cfg[0].blend = "normal";
-      cfg[0].inv = 0; cfg[0].ct = 1; cfg[0].br = 1; cfg[0].sat = 1; cfg[0].hue = 0; cfg[0].blur = 0;
-      cfg[0].x = 0; cfg[0].y = 0; cfg[0].scale = 1; cfg[0].rot = 0;
+      cfg[0].inv=0; cfg[0].ct=1; cfg[0].br=1; cfg[0].sat=1; cfg[0].hue=0; cfg[0].blur=0;
+      cfg[0].x=0; cfg[0].y=0; cfg[0].scale=1; cfg[0].rot=0; cfg[0].flipX=false; cfg[0].flipY=false;
 
-      // Layer1 overlay
+      // overlay
       cfg[1].enabled = true;
       cfg[1].opacity = parseFloat(document.getElementById("op1").value);
       cfg[1].blend = document.getElementById("blend1").value;
@@ -427,148 +497,137 @@
       cfg[1].sat = parseFloat(document.getElementById("sat1").value);
       cfg[1].hue = 0;
       cfg[1].blur = 0;
-      cfg[1].x = 0; cfg[1].y = 0; cfg[1].scale = 1; cfg[1].rot = 0;
+      cfg[1].x=0; cfg[1].y=0; cfg[1].scale=1; cfg[1].rot=0; cfg[1].flipX=false; cfg[1].flipY=false;
     }
 
     function clearPostLayers() {
-      // disable 2-4 + destroy players to save CPU
-      for (let i = 2; i <= 4; i++) {
+      for (let i=2;i<=4;i++) {
         cfg[i].enabled = false;
         applyLayerCSS(i);
+        // destroy to save CPU
         destroyPlayer(i);
       }
       post.preset = "none";
     }
 
-    function syncEchoLayersToOverlay() {
-      // Load echo layers with same overlay videoId as layer1
-      const ovId = layerVideoIds[1];
+    function ensureEchoPlayersLoaded() {
+      // Echo layers duplicate the overlay video id (layer1)
+      const ovId = loadedIds[1];
       if (!ovId) return;
 
-      for (let i = 2; i <= 4; i++) {
+      for (let i=2;i<=4;i++) {
         if (!cfg[i].enabled) continue;
-        if (layerVideoIds[i] === ovId && players[i]) continue;
-
-        // rebuild player in that layer
+        if (loadedIds[i] === ovId && players[i]) continue;
         destroyPlayer(i);
-        cfg[i].enabled = true;
-        applyLayerCSS(i);
-        players[i] = mountPlayer(i, ovId);
-        layerVideoIds[i] = ovId;
+        mountPlayer(i, ovId);
       }
     }
 
-    function trySeekEchoesNearOverlay() {
-      // Best-effort: align echo layers to overlay current time (may be blocked on some devices)
+    function bestEffortSyncEchoTimes() {
+      // Align echoes near overlay time (not perfect, but helps)
       try {
         const t = players[1]?.getCurrentTime?.();
         if (typeof t !== "number") return;
-        for (let i = 2; i <= 4; i++) {
-          if (!players[i] || !players[i].seekTo) continue;
-          // slight offsets can create "delay" vibe
-          const dt = (i - 1) * 0.08; // 80ms-ish
+        for (let i=2;i<=4;i++) {
+          if (!players[i]?.seekTo) continue;
+          const dt = (i-1) * 0.10; // “delay”
           try { players[i].seekTo(Math.max(0, t - dt), true); } catch(e) {}
         }
       } catch(e) {}
     }
 
-    // ---------- Presets (configure cfg[2..4]) ----------
+    // ---------- Presets ----------
     function applyPreset(name) {
       post.preset = name;
+      document.getElementById("postOn").checked = true;
+      post.enabled = true;
 
-      // Make sure post is enabled
-      post.enabled = document.getElementById("postOn").checked = true;
+      const A = parseFloat(document.getElementById("postAmt").value);
+      const echoMul = parseFloat(document.getElementById("echoMul").value);
 
-      // base from UI
-      setMainDefaultsFromUI();
+      // Enable echoes
+      for (let i=2;i<=4;i++) cfg[i].enabled = true;
 
-      // master
-      post.amt = parseFloat(document.getElementById("postAmt").value);
-      post.jitAmt = parseFloat(document.getElementById("jitAmt").value);
-      post.jitSpd = parseFloat(document.getElementById("jitSpd").value);
-      post.fbSpd = parseFloat(document.getElementById("fbSpd").value);
-
-      // Start from clean
-      for (let i = 2; i <= 4; i++) {
-        cfg[i] = {
-          enabled: true,
-          opacity: 0,
-          blend: "screen",
-          inv: 0, ct: 1.0, br: 1.0, sat: 1.0, hue: 0, blur: 0,
-          x: 0, y: 0, scale: 1, rot: 0
-        };
+      // reset echo layers baseline
+      for (let i=2;i<=4;i++) {
+        cfg[i].opacity = 0.12 * A * echoMul;
+        cfg[i].blend = "screen";
+        cfg[i].inv = 0;
+        cfg[i].ct = 1.15;
+        cfg[i].br = 1.0;
+        cfg[i].sat = 1.2;
+        cfg[i].hue = 0;
+        cfg[i].blur = 1.0;
+        cfg[i].x = 0; cfg[i].y = 0;
+        cfg[i].scale = 1.0;
+        cfg[i].rot = 0;
+        cfg[i].flipX = false;
+        cfg[i].flipY = false;
       }
 
-      // Scale effects by master amount
-      const A = post.amt;
-
       if (name === "trail") {
-        // “echo smear” stack
-        cfg[2].opacity = 0.18 * A; cfg[2].blend = "screen";    cfg[2].blur = 2.0; cfg[2].x =  1.0*A*2; cfg[2].y =  0.5*A*2; cfg[2].ct = 1.2; cfg[2].sat = 1.1;
-        cfg[3].opacity = 0.12 * A; cfg[3].blend = "screen";    cfg[3].blur = 4.0; cfg[3].x = -1.0*A*2; cfg[3].y =  1.0*A*2; cfg[3].ct = 1.3; cfg[3].sat = 1.0;
-        cfg[4].opacity = 0.08 * A; cfg[4].blend = "difference";cfg[4].blur = 6.0; cfg[4].x =  0.5*A*2; cfg[4].y = -1.0*A*2; cfg[4].ct = 1.4; cfg[4].sat = 0.9;
+        cfg[2].opacity = 0.20*A*echoMul; cfg[2].blur=2.0; cfg[2].x=  1.6*A*2; cfg[2].y= 0.6*A*2; cfg[2].blend="screen";
+        cfg[3].opacity = 0.14*A*echoMul; cfg[3].blur=4.0; cfg[3].x= -1.8*A*2; cfg[3].y= 1.1*A*2; cfg[3].blend="screen";
+        cfg[4].opacity = 0.10*A*echoMul; cfg[4].blur=6.0; cfg[4].x=  0.8*A*2; cfg[4].y=-1.6*A*2; cfg[4].blend="difference"; cfg[4].ct=1.35; cfg[4].sat=1.0;
       }
 
       if (name === "rgb") {
-        // “chromatic-ish” — three echoes, different hue/offset
-        cfg[2].opacity = 0.22 * A; cfg[2].blend = "screen"; cfg[2].hue =  25; cfg[2].sat = 1.6; cfg[2].ct = 1.25; cfg[2].blur = 0.6; cfg[2].x =  1.2*A*2; cfg[2].y =  0.0;
-        cfg[3].opacity = 0.22 * A; cfg[3].blend = "screen"; cfg[3].hue = -25; cfg[3].sat = 1.6; cfg[3].ct = 1.25; cfg[3].blur = 0.6; cfg[3].x = -1.2*A*2; cfg[3].y =  0.0;
-        cfg[4].opacity = 0.16 * A; cfg[4].blend = "screen"; cfg[4].hue =  0;  cfg[4].sat = 2.2; cfg[4].ct = 1.1;  cfg[4].blur = 0.3; cfg[4].x =  0.0;     cfg[4].y =  0.9*A*2;
+        cfg[2].opacity = 0.22*A*echoMul; cfg[2].blend="screen"; cfg[2].hue=  25; cfg[2].sat=1.8; cfg[2].blur=0.7; cfg[2].x=  2.0*A*2;
+        cfg[3].opacity = 0.22*A*echoMul; cfg[3].blend="screen"; cfg[3].hue= -25; cfg[3].sat=1.8; cfg[3].blur=0.7; cfg[3].x= -2.0*A*2;
+        cfg[4].opacity = 0.16*A*echoMul; cfg[4].blend="screen"; cfg[4].hue=   0; cfg[4].sat=2.4; cfg[4].blur=0.4; cfg[4].y=  1.4*A*2;
       }
 
-      if (name === "glitchA") {
-        // Jitter + harsh difference edges
-        cfg[2].opacity = 0.20 * A; cfg[2].blend="difference"; cfg[2].ct=1.8; cfg[2].sat=1.0; cfg[2].blur=0.2;
-        cfg[3].opacity = 0.14 * A; cfg[3].blend="exclusion";  cfg[3].ct=1.6; cfg[3].sat=1.2; cfg[3].blur=0.6;
-        cfg[4].opacity = 0.10 * A; cfg[4].blend="screen";     cfg[4].ct=1.3; cfg[4].sat=1.6; cfg[4].blur=1.2;
+      if (name === "glitchJit") {
+        cfg[2].opacity = 0.18*A*echoMul; cfg[2].blend="difference"; cfg[2].ct=1.8; cfg[2].blur=0.4;
+        cfg[3].opacity = 0.14*A*echoMul; cfg[3].blend="exclusion";  cfg[3].ct=1.6; cfg[3].blur=0.8;
+        cfg[4].opacity = 0.10*A*echoMul; cfg[4].blend="screen";     cfg[4].sat=2.0; cfg[4].blur=1.2;
       }
 
-      if (name === "glitchB") {
-        // “slice-ish”: offsets are driven by the animation loop in chunked steps
-        cfg[2].opacity = 0.18 * A; cfg[2].blend="difference"; cfg[2].ct=1.7; cfg[2].blur=0.4;
-        cfg[3].opacity = 0.16 * A; cfg[3].blend="difference"; cfg[3].ct=1.5; cfg[3].blur=0.8;
-        cfg[4].opacity = 0.12 * A; cfg[4].blend="screen";     cfg[4].ct=1.2; cfg[4].blur=1.0; cfg[4].sat=1.8;
+      if (name === "glitchPop") {
+        cfg[2].opacity = 0.22*A*echoMul; cfg[2].blend="difference"; cfg[2].ct=2.2; cfg[2].inv=0.15; cfg[2].blur=0.3;
+        cfg[3].opacity = 0.16*A*echoMul; cfg[3].blend="difference"; cfg[3].ct=1.9; cfg[3].inv=0.10; cfg[3].blur=0.9;
+        cfg[4].opacity = 0.10*A*echoMul; cfg[4].blend="screen";     cfg[4].ct=1.4; cfg[4].sat=2.2; cfg[4].blur=1.6;
       }
 
       if (name === "feedback") {
-        // Zoom tunnel illusion
-        cfg[2].opacity = 0.18 * A; cfg[2].blend="screen";     cfg[2].blur=0.8; cfg[2].scale = 1.02;
-        cfg[3].opacity = 0.14 * A; cfg[3].blend="screen";     cfg[3].blur=1.6; cfg[3].scale = 1.04;
-        cfg[4].opacity = 0.10 * A; cfg[4].blend="difference"; cfg[4].blur=2.4; cfg[4].scale = 1.06;
+        // base settings come from UI in the animation loop; here we just set the “look”
+        cfg[2].blend="screen";     cfg[2].opacity = 0.18*A*echoMul;
+        cfg[3].blend="screen";     cfg[3].opacity = 0.14*A*echoMul;
+        cfg[4].blend="difference"; cfg[4].opacity = 0.10*A*echoMul; cfg[4].ct=1.35;
       }
 
-      // Apply + ensure echoes loaded
+      if (name === "mirror") {
+        // “kaleido-ish”: mirrored duplicates + rotation
+        // We’ll use echoes as different mirror variants.
+        cfg[2].blend="screen";     cfg[2].opacity = 0.20*A*echoMul; cfg[2].flipX = true;
+        cfg[3].blend="screen";     cfg[3].opacity = 0.18*A*echoMul; cfg[3].flipY = true;
+        cfg[4].blend="difference"; cfg[4].opacity = 0.12*A*echoMul; cfg[4].flipX = true; cfg[4].flipY = true; cfg[4].ct=1.25;
+      }
+
       applyAllCSS();
-      syncEchoLayersToOverlay();
-      // best-effort sync time
-      setTimeout(trySeekEchoesNearOverlay, 800);
+      ensureEchoPlayersLoaded();
+      setTimeout(bestEffortSyncEchoTimes, 800);
     }
 
     // ---------- Playback ----------
     async function tryAutoplayMuted() {
       let attempted = false;
-      for (let i = 0; i <= 1; i++) {
+      for (let i=0;i<5;i++) {
+        if (i>=2 && !cfg[i].enabled) continue;
         try {
-          if (players[i]) { players[i].mute(); players[i].playVideo(); attempted = true; }
-        } catch(e) {}
-      }
-      // Post layers, if enabled, also play muted
-      for (let i = 2; i <= 4; i++) {
-        if (!cfg[i].enabled) continue;
-        try {
-          if (players[i]) { players[i].mute(); players[i].playVideo(); attempted = true; }
+          if (players[i]) {
+            players[i].mute();
+            players[i].playVideo();
+            attempted = true;
+          }
         } catch(e) {}
       }
       return attempted;
     }
 
     function playAll() {
-      for (let i = 0; i <= 1; i++) {
-        try { players[i] && players[i].mute(); } catch(e) {}
-        try { players[i] && players[i].playVideo(); } catch(e) {}
-      }
-      for (let i = 2; i <= 4; i++) {
-        if (!cfg[i].enabled) continue;
+      for (let i=0;i<5;i++) {
+        if (i>=2 && !cfg[i].enabled) continue;
         try { players[i] && players[i].mute(); } catch(e) {}
         try { players[i] && players[i].playVideo(); } catch(e) {}
       }
@@ -576,12 +635,10 @@
     }
 
     function pauseAll() {
-      for (let i = 0; i < 5; i++) {
-        try { players[i] && players[i].pauseVideo(); } catch(e) {}
-      }
+      for (let i=0;i<5;i++) { try { players[i] && players[i].pauseVideo(); } catch(e) {} }
     }
 
-    // ---------- Load / Reload ----------
+    // ---------- Load ----------
     function loadAll() {
       const id0 = extractVideoId(document.getElementById("url0").value);
       const id1 = extractVideoId(document.getElementById("url1").value);
@@ -590,40 +647,37 @@
         return;
       }
 
-      // destroy all players
-      for (let i = 0; i < 5; i++) destroyPlayer(i);
+      // destroy everything
+      for (let i=0;i<5;i++) destroyPlayer(i);
 
-      // Main layer CSS
-      setMainDefaultsFromUI();
-
-      // Show main layers
+      // main layers must be visible
       cfg[0].enabled = true;
       cfg[1].enabled = true;
 
-      // Create players for main layers
-      players[0] = mountPlayer(0, id0); layerVideoIds[0] = id0;
-      players[1] = mountPlayer(1, id1); layerVideoIds[1] = id1;
+      // mount base+overlay
+      mountPlayer(0, id0);
+      mountPlayer(1, id1);
 
-      // Post FX off by default unless user enabled
+      // post FX off by default (unless user enabled)
+      post.enabled = document.getElementById("postOn").checked;
       if (!post.enabled) {
         clearPostLayers();
       } else {
-        // if enabled and preset active, reapply
+        // if enabled and preset chosen, keep it
         if (post.preset !== "none") {
-          applyPreset(post.preset);
-        } else {
-          // enabled but no preset: leave post layers off
-          clearPostLayers();
+          ensureEchoPlayersLoaded();
         }
       }
 
+      // apply CSS
+      setMainFromUI();
       applyAllCSS();
 
+      // attempt autoplay
       setTimeout(async () => {
         const attempted = await tryAutoplayMuted();
-        // Autoplay can still fail; show tap overlay if it looks like nothing started
         document.getElementById("playOverlay").classList.toggle("show", !attempted);
-      }, 650);
+      }, 700);
     }
 
     // ---------- Mute toggles ----------
@@ -631,16 +685,17 @@
       const p = players[which];
       if (!p) return;
 
-      if (which === 0) mutedBase = !mutedBase;
-      if (which === 1) mutedOv = !mutedOv;
+      if (which===0) mutedBase = !mutedBase;
+      if (which===1) mutedOv = !mutedOv;
 
-      const muted = which === 0 ? mutedBase : mutedOv;
-      const btn = document.getElementById(which === 0 ? "muteBaseBtn" : "muteOvBtn");
+      const muted = (which===0) ? mutedBase : mutedOv;
+      const btn = document.getElementById(which===0 ? "muteBaseBtn" : "muteOvBtn");
+
       try { muted ? p.mute() : p.unMute(); } catch(e) {}
-      btn.textContent = muted ? (which === 0 ? "Unmute base" : "Unmute overlay") : (which === 0 ? "Mute base" : "Mute overlay");
+      btn.textContent = muted ? (which===0 ? "Unmute base" : "Unmute overlay") : (which===0 ? "Mute base" : "Mute overlay");
     }
 
-    // ---------- Fullscreen (real + pseudo fallback) ----------
+    // ---------- Fullscreen ----------
     function isRealFullscreenSupported() {
       const stage = document.getElementById("stage");
       return !!(stage.requestFullscreen && document.fullscreenEnabled);
@@ -658,119 +713,155 @@
           if (document.fullscreenElement) await document.exitFullscreen();
           else await stage.requestFullscreen();
           return;
-        } catch(e) { /* fallthrough */ }
+        } catch(e) {}
       }
       document.body.classList.add("pseudo-fs");
     }
 
-    // ---------- “Glitch / feedback” animation loop ----------
-    let lastT = performance.now();
-    function randSigned() { return (Math.random() * 2 - 1); }
+    // ---------- Animation loop for “glitch / feedback / mirror mode” ----------
     function stepNoise(time, freq) {
-      // chunky jitter: hold random value for a small window
       const k = Math.max(0.001, 1 / Math.max(0.01, freq));
       const bucket = Math.floor(time / k);
-      // deterministic-ish per bucket
       const x = Math.sin(bucket * 999.123) * 10000;
       return (x - Math.floor(x)) * 2 - 1;
     }
 
     function raf(t) {
       const time = t / 1000;
-      const dt = (t - lastT) / 1000;
-      lastT = t;
 
-      // Keep UI-driven main CSS always applied
-      // (cheap; ensures sliders reflect immediately)
-      setMainDefaultsFromUI();
+      // Always update main from UI
+      setMainFromUI();
 
-      // Update post controls
+      // Post enable
       post.enabled = document.getElementById("postOn").checked;
-      post.amt = parseFloat(document.getElementById("postAmt").value);
-      post.jitAmt = parseFloat(document.getElementById("jitAmt").value);
-      post.jitSpd = parseFloat(document.getElementById("jitSpd").value);
-      post.fbSpd = parseFloat(document.getElementById("fbSpd").value);
 
-      // If post disabled, ensure post layers are hidden (but don't constantly destroy players)
+      // If disabled, hide post layers
       if (!post.enabled) {
-        for (let i = 2; i <= 4; i++) cfg[i].enabled = false;
-      } else {
-        // Ensure echo layers exist if a preset is active
-        if (post.preset !== "none") {
-          for (let i = 2; i <= 4; i++) cfg[i].enabled = true;
+        for (let i=2;i<=4;i++) cfg[i].enabled = false;
+        applyAllCSS();
+        requestAnimationFrame(raf);
+        return;
+      }
+
+      // If enabled but no preset, keep post layers off
+      if (post.preset === "none") {
+        for (let i=2;i<=4;i++) cfg[i].enabled = false;
+        applyAllCSS();
+        requestAnimationFrame(raf);
+        return;
+      }
+
+      // Ensure post layers are on
+      for (let i=2;i<=4;i++) cfg[i].enabled = true;
+
+      const A = parseFloat(document.getElementById("postAmt").value);
+      const echoMul = parseFloat(document.getElementById("echoMul").value);
+      const jitAmt = parseFloat(document.getElementById("jitAmt").value) * A;
+      const jitSpd = parseFloat(document.getElementById("jitSpd").value);
+
+      // Apply preset-specific motion behavior
+      if (post.preset === "glitchJit" || post.preset === "glitchPop") {
+        const n1 = stepNoise(time, jitSpd) * jitAmt;
+        const n2 = stepNoise(time + 12.34, jitSpd) * jitAmt;
+        cfg[2].x = n1 * 6;  cfg[2].y = n2 * 4;
+        cfg[3].x = -n2 * 5; cfg[3].y = n1 * 6;
+        cfg[4].x = (n1+n2) * 3; cfg[4].y = (n1-n2) * 2;
+
+        if (post.preset === "glitchPop") {
+          const pop = (Math.abs(stepNoise(time, jitSpd*0.25)) > 0.85) ? 1 : 0;
+          cfg[2].ct = 1.8 + pop * 0.9;
+          cfg[3].ct = 1.6 + pop * 0.7;
+          cfg[4].ct = 1.3 + pop * 0.5;
+          cfg[2].opacity = (0.22*A*echoMul) * (1 + pop*0.8);
+          cfg[3].opacity = (0.16*A*echoMul) * (1 + pop*0.6);
+          cfg[4].opacity = (0.10*A*echoMul) * (1 + pop*0.4);
         }
       }
 
-      // Animate certain presets
-      if (post.enabled && post.preset !== "none") {
-        const A = post.amt;
+      if (post.preset === "trail" || post.preset === "rgb") {
+        // gentle “swim” for vibe
+        cfg[2].x += Math.sin(time*1.2) * 0.02;
+        cfg[3].y += Math.cos(time*1.1) * 0.02;
+        cfg[4].x += Math.sin(time*0.9+2) * 0.02;
+      }
 
-        if (post.preset === "feedback") {
-          // slowly breathing zoom tunnel
-          const z = 1 + Math.sin(time * Math.PI * 2 * post.fbSpd) * (0.02 * A);
-          cfg[2].scale = 1.02 * z;
-          cfg[3].scale = 1.04 * z;
-          cfg[4].scale = 1.06 * z;
-          // gentle rotation drift
-          cfg[2].rot = Math.sin(time*0.7) * 0.6 * A;
-          cfg[3].rot = Math.sin(time*0.9) * 0.9 * A;
-          cfg[4].rot = Math.sin(time*1.1) * 1.2 * A;
+      if (post.preset === "feedback") {
+        const zoomBase = parseFloat(document.getElementById("fbZoomBase").value);
+        const zoomStep = parseFloat(document.getElementById("fbZoomStep").value);
+        const rotSpd = parseFloat(document.getElementById("fbRotSpd").value);
+        const driftAmt = parseFloat(document.getElementById("fbDriftAmt").value) * A;
+        const driftSpd = parseFloat(document.getElementById("fbDriftSpd").value);
+        const blur = parseFloat(document.getElementById("fbBlur").value);
+
+        // layered zoom
+        cfg[2].scale = zoomBase + zoomStep*1;
+        cfg[3].scale = zoomBase + zoomStep*2;
+        cfg[4].scale = zoomBase + zoomStep*3;
+
+        // rotation drift
+        cfg[2].rot = (time * rotSpd) * 0.7 * A;
+        cfg[3].rot = (time * rotSpd) * 1.0 * A;
+        cfg[4].rot = (time * rotSpd) * 1.3 * A;
+
+        // drift offsets
+        cfg[2].x = Math.sin(time*driftSpd) * driftAmt;
+        cfg[2].y = Math.cos(time*driftSpd*1.1) * driftAmt;
+
+        cfg[3].x = Math.sin(time*driftSpd*1.3 + 1.2) * driftAmt * 0.9;
+        cfg[3].y = Math.cos(time*driftSpd*1.0 + 0.4) * driftAmt * 0.9;
+
+        cfg[4].x = Math.sin(time*driftSpd*0.8 + 2.1) * driftAmt * 0.8;
+        cfg[4].y = Math.cos(time*driftSpd*0.9 + 1.7) * driftAmt * 0.8;
+
+        // blur for “feedback smear”
+        cfg[2].blur = blur * 0.6;
+        cfg[3].blur = blur * 1.0;
+        cfg[4].blur = blur * 1.4;
+      }
+
+      if (post.preset === "mirror") {
+        const mode = document.getElementById("mirMode").value;
+        const rot = parseFloat(document.getElementById("mirRot").value);
+
+        // Reset flips first (preset set some, but let UI override “quad”)
+        cfg[2].flipX = false; cfg[2].flipY = false;
+        cfg[3].flipX = false; cfg[3].flipY = false;
+        cfg[4].flipX = false; cfg[4].flipY = false;
+
+        // Apply mode using echo layers as mirror copies
+        if (mode === "mx") {
+          cfg[2].flipX = true;
+        } else if (mode === "my") {
+          cfg[2].flipY = true;
+        } else if (mode === "mxy") {
+          cfg[2].flipX = true; cfg[2].flipY = true;
+        } else if (mode === "quad") {
+          // Use all echoes to approximate a kaleido feel
+          cfg[2].flipX = true;
+          cfg[3].flipY = true;
+          cfg[4].flipX = true; cfg[4].flipY = true;
+          cfg[2].blend = "screen";
+          cfg[3].blend = "screen";
+          cfg[4].blend = "difference";
+          cfg[2].opacity = 0.18*A*echoMul;
+          cfg[3].opacity = 0.18*A*echoMul;
+          cfg[4].opacity = 0.12*A*echoMul;
+          // small offsets create “segment” feel
+          cfg[2].x =  1.4*A; cfg[2].y = 0;
+          cfg[3].x = -1.4*A; cfg[3].y = 0;
+          cfg[4].x =  0;     cfg[4].y = 1.2*A;
         }
 
-        if (post.preset === "glitchA") {
-          // fast jitter: random offsets each frame scaled by sliders
-          const j = post.jitAmt * A;
-          const spd = post.jitSpd;
-          const n1 = stepNoise(time, spd) * j;
-          const n2 = stepNoise(time + 12.34, spd) * j;
-          cfg[2].x = n1 * 3; cfg[2].y = n2 * 2;
-          cfg[3].x = -n2 * 2; cfg[3].y = n1 * 3;
-          cfg[4].x = (n1+n2) * 1.5; cfg[4].y = (n1-n2) * 1.2;
-        }
-
-        if (post.preset === "glitchB") {
-          // chunky “slice-ish” jitter: stepwise offsets + occasional jump
-          const j = post.jitAmt * A;
-          const spd = post.jitSpd;
-          const n = stepNoise(time, spd);
-          const m = stepNoise(time + 5.67, spd * 0.6);
-          const jump = (Math.abs(stepNoise(time, spd*0.25)) > 0.82) ? 1 : 0;
-
-          cfg[2].x = (n * 4) * j; cfg[2].y = (m * 1.5) * j;
-          cfg[3].x = (-n * 6) * j; cfg[3].y = (m * 2.0) * j;
-          cfg[4].x = (jump ? (randSigned()*10*j) : (n * 2.5) * j);
-          cfg[4].y = (jump ? (randSigned()*6*j) : (-m * 2.2) * j);
-
-          // brief brightness “flash” impression
-          cfg[2].ct = 1.6 + jump * 0.8;
-          cfg[3].ct = 1.4 + jump * 0.7;
-          cfg[4].ct = 1.2 + jump * 0.5;
-        }
-
-        if (post.preset === "trail") {
-          // gentle drifting echoes for “trail” feel
-          cfg[2].x = Math.sin(time*0.9) * 1.8 * A;
-          cfg[2].y = Math.cos(time*1.1) * 1.2 * A;
-          cfg[3].x = Math.sin(time*0.7 + 1.2) * -2.2 * A;
-          cfg[3].y = Math.cos(time*0.8 + 0.6) * 1.7 * A;
-          cfg[4].x = Math.sin(time*0.5 + 2.4) * 1.3 * A;
-          cfg[4].y = Math.cos(time*0.6 + 1.9) * -1.9 * A;
-        }
-
-        if (post.preset === "rgb") {
-          // subtle oscillation in offsets to make chroma “swim”
-          cfg[2].x =  2.0*A + Math.sin(time*1.8)*0.8*A; cfg[2].y = 0;
-          cfg[3].x = -2.0*A + Math.sin(time*1.6+1)*0.8*A; cfg[3].y = 0;
-          cfg[4].x = 0; cfg[4].y =  1.4*A + Math.sin(time*1.2+2)*0.6*A;
-        }
-
-        // Ensure echo layers stay aligned-ish
-        if (Math.random() < 0.02) { // occasionally re-seek
-          trySeekEchoesNearOverlay();
-        }
+        cfg[2].rot = rot;
+        cfg[3].rot = -rot * 0.7;
+        cfg[4].rot = rot * 0.4;
       }
 
       applyAllCSS();
+
+      // Occasionally re-seek to keep echoes close
+      if (Math.random() < 0.02) bestEffortSyncEchoTimes();
+
       requestAnimationFrame(raf);
     }
 
@@ -790,6 +881,7 @@
     document.getElementById("playBtn").addEventListener("click", playAll);
     document.getElementById("pauseBtn").addEventListener("click", pauseAll);
     document.getElementById("tapPlayBtn").addEventListener("click", playAll);
+
     document.getElementById("fsBtn").addEventListener("click", toggleFullscreen);
     document.getElementById("hudPlay").addEventListener("click", playAll);
     document.getElementById("hudExit").addEventListener("click", toggleFullscreen);
@@ -797,46 +889,37 @@
     document.getElementById("muteBaseBtn").addEventListener("click", () => toggleMute(0));
     document.getElementById("muteOvBtn").addEventListener("click", () => toggleMute(1));
 
-    // Sliders update immediately (CSS), but reload is needed to change video URLs
-    ["op0","op1","blend1","inv1","ct1","sat1"].forEach(id => {
-      document.getElementById(id).addEventListener("input", () => { /* RAF applies */ });
-      document.getElementById(id).addEventListener("change", () => { /* RAF applies */ });
-    });
-
-    // Post toggles
+    // Post toggle
     document.getElementById("postOn").addEventListener("change", (e) => {
       post.enabled = e.target.checked;
       if (!post.enabled) {
         clearPostLayers();
         applyAllCSS();
       } else {
-        // enable but no preset: do nothing until user picks a preset
-        applyAllCSS();
+        // if enabling with a preset already selected, bring back echoes
+        if (post.preset !== "none") {
+          for (let i=2;i<=4;i++) cfg[i].enabled = true;
+          ensureEchoPlayersLoaded();
+          setTimeout(bestEffortSyncEchoTimes, 800);
+        }
       }
     });
 
-    // Presets
+    // Preset buttons
     document.getElementById("presetOff").addEventListener("click", () => {
-      post.preset = "none";
       document.getElementById("postOn").checked = false;
       post.enabled = false;
       clearPostLayers();
       applyAllCSS();
     });
-
     document.getElementById("pTrail").addEventListener("click", () => applyPreset("trail"));
     document.getElementById("pRGB").addEventListener("click", () => applyPreset("rgb"));
-    document.getElementById("pGlitchA").addEventListener("click", () => applyPreset("glitchA"));
-    document.getElementById("pGlitchB").addEventListener("click", () => applyPreset("glitchB"));
+    document.getElementById("pGlitchJit").addEventListener("click", () => applyPreset("glitchJit"));
+    document.getElementById("pGlitchPop").addEventListener("click", () => applyPreset("glitchPop"));
     document.getElementById("pFeedback").addEventListener("click", () => applyPreset("feedback"));
+    document.getElementById("pMirror").addEventListener("click", () => applyPreset("mirror"));
 
-    // Keep echo layers loaded if post is enabled + preset active, and overlay changes
-    function ensureEchoes() {
-      if (!post.enabled || post.preset === "none") return;
-      syncEchoLayersToOverlay();
-    }
-
-    // ---------- Init UI defaults ----------
+    // ---------- Init defaults ----------
     document.getElementById("url0").value = DEFAULT0;
     document.getElementById("url1").value = DEFAULT1;
 
@@ -844,21 +927,26 @@
     blendSel.innerHTML = blendModes.map(m => `<option value="${m}">${m}</option>`).join("");
     blendSel.value = "difference";
 
-    document.getElementById("inv1").value = "1"; // invert max default
-
     // Post FX OFF by default
     document.getElementById("postOn").checked = false;
 
     // ---------- YouTube API ready ----------
     function onYouTubeIframeAPIReady() {
-      // Start main layers visible immediately
+      // Make base/overlay visible immediately
       cfg[0].enabled = true;
       cfg[1].enabled = true;
       applyAllCSS();
+
+      // Load and start animation loop
       loadAll();
       requestAnimationFrame(raf);
-      // periodically ensure echoes if enabled
-      setInterval(ensureEchoes, 1500);
+
+      // Keep echoes loaded if needed
+      setInterval(() => {
+        if (document.getElementById("postOn").checked && post.preset !== "none") {
+          ensureEchoPlayersLoaded();
+        }
+      }, 2000);
     }
     window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
   </script>
