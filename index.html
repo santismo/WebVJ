@@ -45,7 +45,7 @@
       background:#000;
       border:1px solid var(--border);
     }
-    /* When fullscreen, let it fill the display */
+    /* Real fullscreen if supported */
     .stage:fullscreen{
       width:100vw;
       height:100vh;
@@ -58,7 +58,7 @@
       position:absolute; inset:0;
       transform-origin:50% 50%;
       pointer-events:none;
-      will-change: transform, filter, opacity;
+      will-change: filter, opacity;
     }
     .layer.base{pointer-events:auto;}
     .layer iframe{width:100%; height:100%; border:0; display:block;}
@@ -71,6 +71,7 @@
       opacity:0;
       pointer-events:none;
       transition:opacity .2s ease;
+      z-index:5;
     }
     .playOverlay.show{
       opacity:1;
@@ -82,6 +83,53 @@
       border-radius:999px;
       background:rgba(15,17,24,.75);
       border:1px solid rgba(122,162,255,.6);
+    }
+
+    /* Pseudo fullscreen fallback (works on iOS) */
+    body.pseudo-fs{
+      overflow:hidden;
+    }
+    body.pseudo-fs .wrap{
+      max-width:none;
+      margin:0;
+      padding:0;
+    }
+    body.pseudo-fs .topbar,
+    body.pseudo-fs #controlsPanel{
+      display:none;
+    }
+    body.pseudo-fs .stage{
+      position:fixed;
+      inset:0;
+      width:100vw;
+      height:100vh;
+      border-radius:0;
+      border:none;
+      aspect-ratio:auto;
+      z-index:9999;
+    }
+    body.pseudo-fs .fsHud{
+      display:flex;
+    }
+
+    /* Minimal HUD for pseudo/fullscreen */
+    .fsHud{
+      position:absolute;
+      top:10px; right:10px; left:10px;
+      display:none;
+      justify-content:space-between;
+      gap:10px;
+      z-index:6;
+      pointer-events:none;
+    }
+    .fsHud .hudBtn{
+      pointer-events:auto;
+      background:rgba(15,17,24,.65);
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:999px;
+      padding:9px 12px;
+      font-size:14px;
+      backdrop-filter: blur(6px);
     }
 
     .panel{
@@ -139,8 +187,6 @@
       outline:none;
     }
     input[type="range"]{width:100%;}
-    .toggle{display:flex; gap:8px; align-items:center; color:var(--muted); font-size:13px; user-select:none;}
-    .toggle input{transform:scale(1.05)}
   </style>
 </head>
 <body>
@@ -148,18 +194,23 @@
     <div class="topbar">
       <div>
         <h1>YouTube Overlay VJ</h1>
-        <div class="hint">Defaults: 2 videos • overlay blend = <b>difference</b> • all other FX off • autoplay attempted (muted)</div>
+        <div class="hint">Defaults: 2 videos • overlay blend = <b>difference</b> • invert = <b>max</b> • autoplay attempted (muted)</div>
       </div>
       <div class="btnrow">
         <button id="reloadBtn" class="ghost">Reload</button>
         <button id="playBtn" class="primary">Play</button>
         <button id="pauseBtn">Pause</button>
-        <button id="fsBtn">Fullscreen</button>
+        <button id="fsBtn">Full screen</button>
         <button id="controlsBtn">Expand controls</button>
       </div>
     </div>
 
     <div class="stage" id="stage">
+      <div class="fsHud" id="fsHud">
+        <button class="hudBtn" id="hudPlay">Play</button>
+        <button class="hudBtn" id="hudExit">Exit</button>
+      </div>
+
       <div id="layer0" class="layer base"></div>
       <div id="layer1" class="layer"></div>
 
@@ -171,9 +222,9 @@
     <div class="panel" id="controlsPanel">
       <div class="panelHead">
         <div class="mini">
-          <span class="pill">2 layers (fixed)</span>
+          <span class="pill">2 layers</span>
           <span class="pill">blend + filters only</span>
-          <span class="pill">fullscreen stage</span>
+          <span class="pill">pseudo fullscreen fallback (iOS)</span>
         </div>
         <div class="btnrow">
           <button id="hidePanelBtn" class="ghost">Hide</button>
@@ -219,7 +270,7 @@
             </label>
 
             <label>Invert
-              <input id="inv1" type="range" min="0" max="1" step="0.01" value="0">
+              <input id="inv1" type="range" min="0" max="1" step="0.01" value="1">
             </label>
 
             <label>Contrast
@@ -245,7 +296,7 @@
         </div>
 
         <div class="hint" style="padding:12px 2px 0;">
-          Note: autoplay on iOS may still require a user tap. Fullscreen must be triggered by a tap.
+          iOS often can’t “true fullscreen” an arbitrary mixed element. If true fullscreen fails, this uses a fullscreen-looking overlay mode.
         </div>
       </div>
     </div>
@@ -288,7 +339,6 @@
         playerVars: { playsinline: 1, rel: 0 },
         events: {
           onReady: (e) => {
-            // keep muted for autoplay compatibility
             try { e.target.mute(); } catch(e) {}
           }
         }
@@ -296,10 +346,8 @@
     }
 
     function applyCSS() {
-      // base opacity only
       document.getElementById("layer0").style.opacity = document.getElementById("op0").value;
 
-      // overlay compositing
       const layer1 = document.getElementById("layer1");
       layer1.style.opacity = document.getElementById("op1").value;
       layer1.style.mixBlendMode = document.getElementById("blend1").value;
@@ -319,7 +367,6 @@
       let attempted = false;
       try { if (player0) { player0.mute(); player0.playVideo(); attempted = true; } } catch(e) {}
       try { if (player1) { player1.mute(); player1.playVideo(); attempted = true; } } catch(e) {}
-      // If autoplay fails, user will still see the overlay button
       return attempted;
     }
 
@@ -337,19 +384,17 @@
     }
 
     function loadAll() {
-      const url0 = document.getElementById("url0").value;
-      const url1 = document.getElementById("url1").value;
-      const id0 = extractVideoId(url0);
-      const id1 = extractVideoId(url1);
+      const id0 = extractVideoId(document.getElementById("url0").value);
+      const id1 = extractVideoId(document.getElementById("url1").value);
 
       if (!id0 || !id1) {
         alert("Please provide two valid YouTube URLs (or 11-char IDs).");
         return;
       }
 
-      // Destroy existing
       if (player0 && player0.destroy) { try { player0.destroy(); } catch(e) {} }
       if (player1 && player1.destroy) { try { player1.destroy(); } catch(e) {} }
+
       player0 = mountPlayer(0, id0);
       player1 = mountPlayer(1, id1);
 
@@ -357,7 +402,6 @@
 
       setTimeout(async () => {
         const attempted = await tryAutoplayMuted();
-        // Show tap overlay if we attempted autoplay (still might fail on iOS)
         document.getElementById("playOverlay").classList.toggle("show", !attempted);
       }, 650);
     }
@@ -376,17 +420,36 @@
       btn.textContent = muted ? "Unmute" : "Mute";
     }
 
-    async function goFullscreen() {
+    function isRealFullscreenSupported() {
       const stage = document.getElementById("stage");
-      try {
-        if (document.fullscreenElement) {
-          await document.exitFullscreen();
-        } else {
-          await stage.requestFullscreen();
-        }
-      } catch (e) {
-        alert("Fullscreen not available in this browser (or it must be triggered by a tap).");
+      return !!(stage.requestFullscreen && document.fullscreenEnabled);
+    }
+
+    async function toggleFullscreen() {
+      const stage = document.getElementById("stage");
+
+      // If we're in pseudo-fs, exit it
+      if (document.body.classList.contains("pseudo-fs")) {
+        document.body.classList.remove("pseudo-fs");
+        return;
       }
+
+      // Try real fullscreen if supported
+      if (isRealFullscreenSupported()) {
+        try {
+          if (document.fullscreenElement) {
+            await document.exitFullscreen();
+          } else {
+            await stage.requestFullscreen();
+          }
+          return;
+        } catch (e) {
+          // fallthrough to pseudo
+        }
+      }
+
+      // Fallback: pseudo fullscreen (works on iOS)
+      document.body.classList.add("pseudo-fs");
     }
 
     // Panel toggle
@@ -406,7 +469,10 @@
     document.getElementById("playBtn").addEventListener("click", playAll);
     document.getElementById("pauseBtn").addEventListener("click", pauseAll);
     document.getElementById("tapPlayBtn").addEventListener("click", playAll);
-    document.getElementById("fsBtn").addEventListener("click", goFullscreen);
+    document.getElementById("fsBtn").addEventListener("click", toggleFullscreen);
+
+    document.getElementById("hudPlay").addEventListener("click", playAll);
+    document.getElementById("hudExit").addEventListener("click", toggleFullscreen);
 
     document.getElementById("mute0Btn").addEventListener("click", () => toggleMute(0));
     document.getElementById("mute1Btn").addEventListener("click", () => toggleMute(1));
@@ -417,14 +483,19 @@
       document.getElementById(id).addEventListener("change", applyCSS);
     });
 
-    // Fill defaults + blend default = difference
+    // Defaults + invert max
     document.getElementById("url0").value = DEFAULT0;
     document.getElementById("url1").value = DEFAULT1;
+
     const blendSel = document.getElementById("blend1");
     blendSel.innerHTML = blendModes.map(m => `<option value="${m}">${m}</option>`).join("");
     blendSel.value = "difference";
 
-    // YouTube API ready hook
+    // Ensure invert max visually even before load
+    document.getElementById("inv1").value = "1";
+    applyCSS();
+
+    // YouTube API ready
     function onYouTubeIframeAPIReady() {
       loadAll();
     }
