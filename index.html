@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>YouTube Overlay VJ (iframe-safe)</title>
+  <title>YouTube Overlay VJ</title>
   <style>
     :root{
       --bg:#07080c;
@@ -45,33 +45,24 @@
       background:#000;
       border:1px solid var(--border);
     }
-
-    /* Scanlines overlay (global) */
-    .scanlines{
-      position:absolute; inset:0;
-      pointer-events:none;
-      opacity:0;
-      mix-blend-mode:overlay;
-      background:
-        repeating-linear-gradient(
-          to bottom,
-          rgba(255,255,255,.05) 0px,
-          rgba(255,255,255,.05) 1px,
-          rgba(0,0,0,0) 3px,
-          rgba(0,0,0,0) 6px
-        );
+    /* When fullscreen, let it fill the display */
+    .stage:fullscreen{
+      width:100vw;
+      height:100vh;
+      aspect-ratio:auto;
+      border-radius:0;
+      border:none;
     }
 
     .layer{
       position:absolute; inset:0;
       transform-origin:50% 50%;
-      pointer-events:none; /* overlays won't steal taps */
+      pointer-events:none;
       will-change: transform, filter, opacity;
     }
     .layer.base{pointer-events:auto;}
     .layer iframe{width:100%; height:100%; border:0; display:block;}
 
-    /* Big tap-to-play overlay */
     .playOverlay{
       position:absolute; inset:0;
       display:flex; align-items:center; justify-content:center;
@@ -116,7 +107,6 @@
       background:rgba(255,255,255,.03);
     }
 
-    .layers{display:grid; gap:12px;}
     .card{
       border:1px solid var(--border);
       border-radius:var(--radius);
@@ -151,7 +141,6 @@
     input[type="range"]{width:100%;}
     .toggle{display:flex; gap:8px; align-items:center; color:var(--muted); font-size:13px; user-select:none;}
     .toggle input{transform:scale(1.05)}
-    .divider{height:1px; background:var(--border); margin:0 12px;}
   </style>
 </head>
 <body>
@@ -159,12 +148,13 @@
     <div class="topbar">
       <div>
         <h1>YouTube Overlay VJ</h1>
-        <div class="hint">Overlay blend defaults to <b>difference</b>. Autoplay is attempted (muted); if not, tap Play.</div>
+        <div class="hint">Defaults: 2 videos • overlay blend = <b>difference</b> • all other FX off • autoplay attempted (muted)</div>
       </div>
       <div class="btnrow">
         <button id="reloadBtn" class="ghost">Reload</button>
         <button id="playBtn" class="primary">Play</button>
         <button id="pauseBtn">Pause</button>
+        <button id="fsBtn">Fullscreen</button>
         <button id="controlsBtn">Expand controls</button>
       </div>
     </div>
@@ -172,11 +162,6 @@
     <div class="stage" id="stage">
       <div id="layer0" class="layer base"></div>
       <div id="layer1" class="layer"></div>
-      <div id="layer2" class="layer"></div>
-      <div id="layer3" class="layer"></div>
-      <div id="layer4" class="layer"></div>
-
-      <div class="scanlines" id="scanlines"></div>
 
       <div class="playOverlay" id="playOverlay">
         <button id="tapPlayBtn">Tap to Play</button>
@@ -186,12 +171,11 @@
     <div class="panel" id="controlsPanel">
       <div class="panelHead">
         <div class="mini">
-          <span class="pill">iframe-safe FX</span>
-          <span class="pill">blend + filter + motion</span>
-          <span class="pill">2–5 layers</span>
+          <span class="pill">2 layers (fixed)</span>
+          <span class="pill">blend + filters only</span>
+          <span class="pill">fullscreen stage</span>
         </div>
         <div class="btnrow">
-          <button id="addLayerBtn">Add layer</button>
           <button id="hidePanelBtn" class="ghost">Hide</button>
         </div>
       </div>
@@ -199,79 +183,86 @@
       <div class="panelBody">
         <div class="card">
           <div class="cardHead">
-            <div class="cardTitle">Global FX</div>
+            <div class="cardTitle">Layer 1 (base)</div>
+            <div class="cardActions">
+              <button id="mute0Btn">Unmute</button>
+            </div>
           </div>
           <div class="row">
-            <label class="toggle">
-              <span>Scanlines</span>
-              <input id="scanOn" type="checkbox">
+            <label>URL
+              <input id="url0" type="text">
             </label>
-            <label>Scanlines opacity
-              <input id="scanOp" type="range" min="0" max="1" step="0.01" value="0.18">
+            <label>Opacity
+              <input id="op0" type="range" min="0" max="1" step="0.01" value="1">
             </label>
           </div>
         </div>
 
-        <div class="layers" id="layersUI"></div>
+        <div class="card" style="margin-top:12px;">
+          <div class="cardHead">
+            <div class="cardTitle">Layer 2 (overlay)</div>
+            <div class="cardActions">
+              <button id="mute1Btn">Unmute</button>
+            </div>
+          </div>
+          <div class="row">
+            <label>URL
+              <input id="url1" type="text">
+            </label>
+
+            <label>Blend mode
+              <select id="blend1"></select>
+            </label>
+
+            <label>Opacity
+              <input id="op1" type="range" min="0" max="1" step="0.01" value="0.85">
+            </label>
+
+            <label>Invert
+              <input id="inv1" type="range" min="0" max="1" step="0.01" value="0">
+            </label>
+
+            <label>Contrast
+              <input id="ct1" type="range" min="0.5" max="3.0" step="0.01" value="1.4">
+            </label>
+
+            <label>Brightness
+              <input id="br1" type="range" min="0.2" max="2.0" step="0.01" value="1.0">
+            </label>
+
+            <label>Saturation
+              <input id="sat1" type="range" min="0" max="3.0" step="0.01" value="0.9">
+            </label>
+
+            <label>Hue rotate
+              <input id="hu1" type="range" min="0" max="360" step="1" value="0">
+            </label>
+
+            <label>Blur (px)
+              <input id="bl1" type="range" min="0" max="12" step="0.1" value="0">
+            </label>
+          </div>
+        </div>
+
+        <div class="hint" style="padding:12px 2px 0;">
+          Note: autoplay on iOS may still require a user tap. Fullscreen must be triggered by a tap.
+        </div>
       </div>
     </div>
   </div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    const MAX_LAYERS = 5;
-    const players = new Array(MAX_LAYERS).fill(null);
+    let player0 = null, player1 = null;
+    let muted0 = true, muted1 = true;
 
-    // Your defaults
-    const DEFAULT_URLS = [
-      "https://m.youtube.com/watch?v=3pxrECZYEAA&pp=ygUOdmlzdWFscyB0cmlwcHk%3D",
-      "https://m.youtube.com/watch?v=dS-MaUk6YBI"
-    ];
+    const DEFAULT0 = "https://m.youtube.com/watch?v=3pxrECZYEAA&pp=ygUOdmlzdWFscyB0cmlwcHk%3D";
+    const DEFAULT1 = "https://m.youtube.com/watch?v=dS-MaUk6YBI";
 
     const blendModes = [
       "normal","multiply","screen","overlay","darken","lighten","color-dodge","color-burn",
       "hard-light","soft-light","difference","exclusion","hue","saturation","color","luminosity"
     ];
-
-    // State per layer
-    const state = Array.from({length: MAX_LAYERS}, (_, i) => ({
-      enabled: i < 2,
-      url: DEFAULT_URLS[i] || "",
-      muted: true,                    // autoplay requires muted
-      opacity: i === 0 ? 1 : 0.85,
-      blend: i === 0 ? "normal" : "difference",
-      scale: 1,
-      x: 0,
-      y: 0,
-
-      // filters
-      invert: 0,
-      contrast: i === 0 ? 1.0 : 1.4,
-      brightness: 1.0,
-      saturate: i === 0 ? 1.0 : 0.9,
-      hue: 0,
-      blur: 0,
-
-      // “iframe-safe” VJ-ish FX
-      fxHueCycle: i !== 0,     // on for overlays by default
-      fxHueSpeed: 18,          // deg/sec
-      fxSpin: false,
-      fxSpinSpeed: 12,         // deg/sec
-      fxZoomPulse: i !== 0,
-      fxZoomAmt: 0.08,         // 0..0.35 recommended
-      fxZoomSpeed: 1.2,        // cycles/sec
-      fxFlicker: i !== 0,
-      fxFlickerAmt: 0.35,      // 0..0.9
-      fxFlickerSpeed: 9,       // Hz-ish
-      fxGlow: i !== 0,
-      fxGlowAmt: 18            // px drop-shadow
-    }));
-
-    // Global
-    const global = {
-      scanOn: false,
-      scanOp: 0.18
-    };
 
     function extractVideoId(url) {
       if (!url) return null;
@@ -289,424 +280,155 @@
       return null;
     }
 
-    function ensureLayerContainer(i) {
-      const layer = document.getElementById(`layer${i}`);
-      layer.innerHTML = `<div id="player${i}"></div>`;
-      return layer;
-    }
-
-    function makePlayer(i, videoId) {
-      // destroy existing
-      if (players[i] && players[i].destroy) {
-        try { players[i].destroy(); } catch(e) {}
-        players[i] = null;
-      }
-      return new YT.Player(`player${i}`, {
+    function mountPlayer(layerIndex, videoId) {
+      const layer = document.getElementById(`layer${layerIndex}`);
+      layer.innerHTML = `<div id="player${layerIndex}"></div>`;
+      return new YT.Player(`player${layerIndex}`, {
         videoId,
-        playerVars: {
-          playsinline: 1,
-          rel: 0
-        },
+        playerVars: { playsinline: 1, rel: 0 },
         events: {
           onReady: (e) => {
-            // Keep muted for autoplay compatibility
+            // keep muted for autoplay compatibility
             try { e.target.mute(); } catch(e) {}
           }
         }
       });
     }
 
-    function applyLayerStaticCSS(i) {
-      const layer = document.getElementById(`layer${i}`);
-      const s = state[i];
+    function applyCSS() {
+      // base opacity only
+      document.getElementById("layer0").style.opacity = document.getElementById("op0").value;
 
-      layer.style.display = s.enabled ? "block" : "none";
-      layer.style.opacity = s.opacity;
-      layer.style.mixBlendMode = s.blend;
+      // overlay compositing
+      const layer1 = document.getElementById("layer1");
+      layer1.style.opacity = document.getElementById("op1").value;
+      layer1.style.mixBlendMode = document.getElementById("blend1").value;
 
-      // Base geometric transform (FX transforms get applied in RAF)
-      layer.dataset.baseX = s.x;
-      layer.dataset.baseY = s.y;
-      layer.dataset.baseScale = s.scale;
+      const inv = document.getElementById("inv1").value;
+      const ct  = document.getElementById("ct1").value;
+      const br  = document.getElementById("br1").value;
+      const sat = document.getElementById("sat1").value;
+      const hu  = document.getElementById("hu1").value;
+      const bl  = document.getElementById("bl1").value;
 
-      // Base filter settings stored; RAF adds animated pieces
-      layer.dataset.inv = s.invert;
-      layer.dataset.ct = s.contrast;
-      layer.dataset.br = s.brightness;
-      layer.dataset.sat = s.saturate;
-      layer.dataset.hue = s.hue;
-      layer.dataset.blur = s.blur;
-      layer.dataset.glow = s.fxGlow ? s.fxGlowAmt : 0;
+      layer1.style.filter =
+        `invert(${inv}) contrast(${ct}) brightness(${br}) saturate(${sat}) hue-rotate(${hu}deg) blur(${bl}px)`;
     }
 
-    function applyAllStaticCSS() {
-      for (let i = 0; i < MAX_LAYERS; i++) applyLayerStaticCSS(i);
-      // only base layer interactive
-      for (let i = 0; i < MAX_LAYERS; i++) {
-        const layer = document.getElementById(`layer${i}`);
-        layer.classList.toggle("base", i === 0);
-      }
-      // scanlines
-      const sl = document.getElementById("scanlines");
-      sl.style.opacity = global.scanOn ? global.scanOp : 0;
-    }
-
-    function renderUI() {
-      const wrap = document.getElementById("layersUI");
-      wrap.innerHTML = Array.from({length: MAX_LAYERS}, (_, i) => layerCardHTML(i)).join("");
-
-      // set blend selects
-      wrap.querySelectorAll(".card").forEach(card => {
-        const i = +card.dataset.i;
-        card.querySelector(".blend").value = state[i].blend;
-      });
-
-      // hook events
-      wrap.querySelectorAll(".card").forEach(card => {
-        const i = +card.dataset.i;
-        const s = state[i];
-        const q = (sel) => card.querySelector(sel);
-
-        q(".enabled").addEventListener("change", (e) => {
-          s.enabled = e.target.checked;
-          applyLayerStaticCSS(i);
-        });
-
-        q(".url").addEventListener("change", (e) => {
-          s.url = e.target.value;
-        });
-
-        q(".mute").addEventListener("click", () => {
-          // Note: we keep players muted by default to maximize autoplay.
-          // This toggles after user gesture.
-          s.muted = !s.muted;
-          q(".mute").textContent = s.muted ? "Unmute" : "Mute";
-          const p = players[i];
-          if (p) {
-            try { s.muted ? p.mute() : p.unMute(); } catch(e) {}
-          }
-        });
-
-        const bindRange = (cls, key, parser = parseFloat) => {
-          q(cls).addEventListener("input", (e) => {
-            s[key] = parser(e.target.value);
-            applyLayerStaticCSS(i);
-          });
-        };
-
-        // core
-        bindRange(".opacity", "opacity");
-        q(".blend").addEventListener("change", (e) => { s.blend = e.target.value; applyLayerStaticCSS(i); });
-
-        bindRange(".scale", "scale");
-        bindRange(".x", "x", v => parseInt(v, 10));
-        bindRange(".y", "y", v => parseInt(v, 10));
-
-        // filters
-        bindRange(".invert", "invert");
-        bindRange(".contrast", "contrast");
-        bindRange(".brightness", "brightness");
-        bindRange(".saturate", "saturate");
-        bindRange(".hue", "hue", v => parseInt(v, 10));
-        bindRange(".blur", "blur", v => parseFloat(v));
-
-        // FX toggles
-        q(".fxHueCycle").addEventListener("change", (e)=>{ s.fxHueCycle = e.target.checked; });
-        bindRange(".fxHueSpeed","fxHueSpeed", v => parseFloat(v));
-
-        q(".fxSpin").addEventListener("change", (e)=>{ s.fxSpin = e.target.checked; });
-        bindRange(".fxSpinSpeed","fxSpinSpeed", v => parseFloat(v));
-
-        q(".fxZoomPulse").addEventListener("change", (e)=>{ s.fxZoomPulse = e.target.checked; });
-        bindRange(".fxZoomAmt","fxZoomAmt", v => parseFloat(v));
-        bindRange(".fxZoomSpeed","fxZoomSpeed", v => parseFloat(v));
-
-        q(".fxFlicker").addEventListener("change", (e)=>{ s.fxFlicker = e.target.checked; });
-        bindRange(".fxFlickerAmt","fxFlickerAmt", v => parseFloat(v));
-        bindRange(".fxFlickerSpeed","fxFlickerSpeed", v => parseFloat(v));
-
-        q(".fxGlow").addEventListener("change", (e)=>{ s.fxGlow = e.target.checked; applyLayerStaticCSS(i); });
-        bindRange(".fxGlowAmt","fxGlowAmt", v => parseInt(v,10));
-      });
-    }
-
-    function layerCardHTML(i) {
-      const s = state[i];
-      const opts = blendModes.map(m => `<option value="${m}">${m}</option>`).join("");
-      return `
-        <div class="card" data-i="${i}">
-          <div class="cardHead">
-            <div class="cardTitle">Layer ${i+1} ${i===0 ? "<span style='color:var(--muted); font-weight:600'>(base)</span>" : ""}</div>
-            <div class="cardActions">
-              <label class="toggle"><input type="checkbox" class="enabled" ${s.enabled?"checked":""}>enabled</label>
-              <button class="mute">${s.muted ? "Unmute" : "Mute"}</button>
-            </div>
-          </div>
-
-          <div class="row">
-            <label>URL
-              <input class="url" type="text" value="${escapeHtml(s.url)}" placeholder="YouTube URL or 11-char ID">
-            </label>
-
-            <label>Blend mode
-              <select class="blend">${opts}</select>
-            </label>
-
-            <label>Opacity
-              <input class="opacity" type="range" min="0" max="1" step="0.01" value="${s.opacity}">
-            </label>
-
-            <label>Scale
-              <input class="scale" type="range" min="0.3" max="1.8" step="0.01" value="${s.scale}">
-            </label>
-
-            <label>X (percent)
-              <input class="x" type="range" min="-50" max="50" step="1" value="${s.x}">
-            </label>
-
-            <label>Y (percent)
-              <input class="y" type="range" min="-50" max="50" step="1" value="${s.y}">
-            </label>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="row">
-            <label>Invert
-              <input class="invert" type="range" min="0" max="1" step="0.01" value="${s.invert}">
-            </label>
-            <label>Contrast
-              <input class="contrast" type="range" min="0.5" max="3.0" step="0.01" value="${s.contrast}">
-            </label>
-            <label>Brightness
-              <input class="brightness" type="range" min="0.2" max="2.0" step="0.01" value="${s.brightness}">
-            </label>
-            <label>Saturation
-              <input class="saturate" type="range" min="0" max="3.0" step="0.01" value="${s.saturate}">
-            </label>
-            <label>Hue rotate (static)
-              <input class="hue" type="range" min="0" max="360" step="1" value="${s.hue}">
-            </label>
-            <label>Blur (px)
-              <input class="blur" type="range" min="0" max="12" step="0.1" value="${s.blur}">
-            </label>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="row">
-            <label class="toggle"><input type="checkbox" class="fxHueCycle" ${s.fxHueCycle?"checked":""}>Hue cycle</label>
-            <label>Hue speed (deg/sec)
-              <input class="fxHueSpeed" type="range" min="0" max="120" step="0.5" value="${s.fxHueSpeed}">
-            </label>
-
-            <label class="toggle"><input type="checkbox" class="fxSpin" ${s.fxSpin?"checked":""}>Spin</label>
-            <label>Spin speed (deg/sec)
-              <input class="fxSpinSpeed" type="range" min="0" max="120" step="0.5" value="${s.fxSpinSpeed}">
-            </label>
-
-            <label class="toggle"><input type="checkbox" class="fxZoomPulse" ${s.fxZoomPulse?"checked":""}>Zoom pulse</label>
-            <label>Zoom amount
-              <input class="fxZoomAmt" type="range" min="0" max="0.35" step="0.005" value="${s.fxZoomAmt}">
-            </label>
-            <label>Zoom speed (cycles/sec)
-              <input class="fxZoomSpeed" type="range" min="0" max="6" step="0.05" value="${s.fxZoomSpeed}">
-            </label>
-
-            <label class="toggle"><input type="checkbox" class="fxFlicker" ${s.fxFlicker?"checked":""}>Flicker/strobe</label>
-            <label>Flicker amount
-              <input class="fxFlickerAmt" type="range" min="0" max="0.95" step="0.01" value="${s.fxFlickerAmt}">
-            </label>
-            <label>Flicker speed
-              <input class="fxFlickerSpeed" type="range" min="0" max="40" step="0.5" value="${s.fxFlickerSpeed}">
-            </label>
-
-            <label class="toggle"><input type="checkbox" class="fxGlow" ${s.fxGlow?"checked":""}>Glow (drop-shadow)</label>
-            <label>Glow amount (px)
-              <input class="fxGlowAmt" type="range" min="0" max="60" step="1" value="${s.fxGlowAmt}">
-            </label>
-          </div>
-        </div>
-      `;
-    }
-
-    function escapeHtml(s) {
-      return (s ?? "")
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-
-    // YouTube API ready hook
-    function onYouTubeIframeAPIReady() {
-      // We still call load after a short delay to ensure API is present.
-    }
-
-    function loadAll() {
-      for (let i = 0; i < MAX_LAYERS; i++) {
-        const layer = document.getElementById(`layer${i}`);
-        if (!state[i].enabled) {
-          layer.style.display = "none";
-          if (players[i] && players[i].destroy) { try { players[i].destroy(); } catch(e) {} }
-          players[i] = null;
-          continue;
-        }
-        const id = extractVideoId(state[i].url);
-        if (!id) {
-          layer.style.display = "none";
-          if (players[i] && players[i].destroy) { try { players[i].destroy(); } catch(e) {} }
-          players[i] = null;
-          continue;
-        }
-        ensureLayerContainer(i);
-        layer.style.display = "block";
-        players[i] = makePlayer(i, id);
-      }
-      applyAllStaticCSS();
-
-      // Try autoplay shortly after load
-      setTimeout(async () => {
-        const ok = await tryPlayAllMuted();
-        document.getElementById("playOverlay").classList.toggle("show", !ok);
-      }, 600);
-    }
-
-    async function tryPlayAllMuted() {
-      let playedAny = false;
-      for (let i = 0; i < MAX_LAYERS; i++) {
-        if (!state[i].enabled) continue;
-        const p = players[i];
-        if (!p || !p.playVideo) continue;
-        try { p.mute(); } catch(e) {}
-        try { p.playVideo(); playedAny = true; } catch(e) {}
-      }
-      // We can't reliably detect play state across devices; assume "attempted".
-      return playedAny;
+    async function tryAutoplayMuted() {
+      let attempted = false;
+      try { if (player0) { player0.mute(); player0.playVideo(); attempted = true; } } catch(e) {}
+      try { if (player1) { player1.mute(); player1.playVideo(); attempted = true; } } catch(e) {}
+      // If autoplay fails, user will still see the overlay button
+      return attempted;
     }
 
     function playAll() {
-      // User gesture -> safe to start
-      for (let i = 0; i < MAX_LAYERS; i++) {
-        if (!state[i].enabled) continue;
-        const p = players[i];
-        if (!p || !p.playVideo) continue;
-        try { p.mute(); } catch(e) {}
-        try { p.playVideo(); } catch(e) {}
-      }
+      try { player0 && player0.mute(); } catch(e) {}
+      try { player1 && player1.mute(); } catch(e) {}
+      try { player0 && player0.playVideo(); } catch(e) {}
+      try { player1 && player1.playVideo(); } catch(e) {}
       document.getElementById("playOverlay").classList.remove("show");
     }
 
     function pauseAll() {
-      for (let i = 0; i < MAX_LAYERS; i++) {
-        const p = players[i];
-        if (!p || !p.pauseVideo) continue;
-        try { p.pauseVideo(); } catch(e) {}
-      }
+      try { player0 && player0.pauseVideo(); } catch(e) {}
+      try { player1 && player1.pauseVideo(); } catch(e) {}
     }
 
-    // Animation loop: apply FX transforms + filter animation
-    let t0 = performance.now();
-    function raf(t) {
-      const dt = (t - t0) / 1000;
-      t0 = t;
-      for (let i = 0; i < MAX_LAYERS; i++) {
-        const layer = document.getElementById(`layer${i}`);
-        if (!state[i].enabled || layer.style.display === "none") continue;
+    function loadAll() {
+      const url0 = document.getElementById("url0").value;
+      const url1 = document.getElementById("url1").value;
+      const id0 = extractVideoId(url0);
+      const id1 = extractVideoId(url1);
 
-        const s = state[i];
-        const baseX = +layer.dataset.baseX || 0;
-        const baseY = +layer.dataset.baseY || 0;
-        const baseScale = +layer.dataset.baseScale || 1;
+      if (!id0 || !id1) {
+        alert("Please provide two valid YouTube URLs (or 11-char IDs).");
+        return;
+      }
 
-        // Motion FX
-        const time = t / 1000;
-        const spin = s.fxSpin ? (time * s.fxSpinSpeed) : 0;
-        const zoom = s.fxZoomPulse ? (1 + Math.sin(time * Math.PI * 2 * s.fxZoomSpeed) * s.fxZoomAmt) : 1;
+      // Destroy existing
+      if (player0 && player0.destroy) { try { player0.destroy(); } catch(e) {} }
+      if (player1 && player1.destroy) { try { player1.destroy(); } catch(e) {} }
+      player0 = mountPlayer(0, id0);
+      player1 = mountPlayer(1, id1);
 
-        layer.style.transform =
-          `translate(${baseX}%, ${baseY}%) scale(${baseScale * zoom}) rotate(${spin}deg)`;
+      applyCSS();
 
-        // Filter FX
-        const inv = s.invert;
-        const ct = s.contrast;
-        const br = s.brightness;
-        const sat = s.saturate;
-        const baseHue = s.hue;
-        const blur = s.blur;
+      setTimeout(async () => {
+        const attempted = await tryAutoplayMuted();
+        // Show tap overlay if we attempted autoplay (still might fail on iOS)
+        document.getElementById("playOverlay").classList.toggle("show", !attempted);
+      }, 650);
+    }
 
-        const hueAnim = s.fxHueCycle ? (time * s.fxHueSpeed) : 0;
+    function toggleMute(which) {
+      const p = which === 0 ? player0 : player1;
+      if (!p) return;
 
-        // flicker modifies opacity (but keep base stable)
-        if (s.fxFlicker && i !== 0) {
-          const f = (Math.sin(time * Math.PI * 2 * s.fxFlickerSpeed) * 0.5 + 0.5);
-          const flick = 1 - (f * s.fxFlickerAmt);
-          layer.style.opacity = s.opacity * flick;
+      if (which === 0) muted0 = !muted0;
+      else muted1 = !muted1;
+
+      const muted = which === 0 ? muted0 : muted1;
+      const btn = document.getElementById(which === 0 ? "mute0Btn" : "mute1Btn");
+
+      try { muted ? p.mute() : p.unMute(); } catch(e) {}
+      btn.textContent = muted ? "Unmute" : "Mute";
+    }
+
+    async function goFullscreen() {
+      const stage = document.getElementById("stage");
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
         } else {
-          layer.style.opacity = s.opacity;
+          await stage.requestFullscreen();
         }
-
-        const glowPx = (s.fxGlow ? s.fxGlowAmt : 0);
-        const glow = glowPx > 0 ? ` drop-shadow(0 0 ${glowPx}px rgba(255,255,255,.55))` : "";
-
-        layer.style.filter =
-          `invert(${inv}) contrast(${ct}) brightness(${br}) saturate(${sat}) hue-rotate(${(baseHue + hueAnim)%360}deg) blur(${blur}px)` + glow;
+      } catch (e) {
+        alert("Fullscreen not available in this browser (or it must be triggered by a tap).");
       }
-
-      requestAnimationFrame(raf);
     }
 
-    function addLayer() {
-      // enable next disabled layer
-      for (let i = 0; i < MAX_LAYERS; i++) {
-        if (!state[i].enabled) {
-          state[i].enabled = true;
-          // default settings for new overlay
-          state[i].blend = "difference";
-          state[i].opacity = 0.75;
-          state[i].fxHueCycle = true;
-          state[i].fxZoomPulse = true;
-          state[i].fxFlicker = true;
-          renderUI();
-          applyAllStaticCSS();
-          return;
-        }
-      }
-      alert("Max 5 layers.");
-    }
-
-    // UI wiring
+    // Panel toggle
     const controlsPanel = document.getElementById("controlsPanel");
     document.getElementById("controlsBtn").addEventListener("click", () => {
       controlsPanel.classList.toggle("open");
-      document.getElementById("controlsBtn").textContent = controlsPanel.classList.contains("open")
-        ? "Collapse controls"
-        : "Expand controls";
+      document.getElementById("controlsBtn").textContent =
+        controlsPanel.classList.contains("open") ? "Collapse controls" : "Expand controls";
     });
     document.getElementById("hidePanelBtn").addEventListener("click", () => {
       controlsPanel.classList.remove("open");
       document.getElementById("controlsBtn").textContent = "Expand controls";
     });
 
-    document.getElementById("addLayerBtn").addEventListener("click", addLayer);
-    document.getElementById("reloadBtn").addEventListener("click", () => { loadAll(); });
-    document.getElementById("playBtn").addEventListener("click", () => { playAll(); });
-    document.getElementById("pauseBtn").addEventListener("click", () => { pauseAll(); });
-    document.getElementById("tapPlayBtn").addEventListener("click", () => { playAll(); });
+    // Buttons
+    document.getElementById("reloadBtn").addEventListener("click", loadAll);
+    document.getElementById("playBtn").addEventListener("click", playAll);
+    document.getElementById("pauseBtn").addEventListener("click", pauseAll);
+    document.getElementById("tapPlayBtn").addEventListener("click", playAll);
+    document.getElementById("fsBtn").addEventListener("click", goFullscreen);
 
-    // Global FX controls
-    const scanOn = document.getElementById("scanOn");
-    const scanOp = document.getElementById("scanOp");
-    scanOn.addEventListener("change", (e)=>{ global.scanOn = e.target.checked; applyAllStaticCSS(); });
-    scanOp.addEventListener("input", (e)=>{ global.scanOp = parseFloat(e.target.value); applyAllStaticCSS(); });
+    document.getElementById("mute0Btn").addEventListener("click", () => toggleMute(0));
+    document.getElementById("mute1Btn").addEventListener("click", () => toggleMute(1));
 
-    // Initial render + load
-    renderUI();
-    applyAllStaticCSS();
-    // Load after API likely ready (API script loads async)
-    setTimeout(loadAll, 300);
-    requestAnimationFrame(raf);
+    // Wire controls -> CSS
+    ["op0","op1","blend1","inv1","ct1","br1","sat1","hu1","bl1"].forEach(id => {
+      document.getElementById(id).addEventListener("input", applyCSS);
+      document.getElementById(id).addEventListener("change", applyCSS);
+    });
+
+    // Fill defaults + blend default = difference
+    document.getElementById("url0").value = DEFAULT0;
+    document.getElementById("url1").value = DEFAULT1;
+    const blendSel = document.getElementById("blend1");
+    blendSel.innerHTML = blendModes.map(m => `<option value="${m}">${m}</option>`).join("");
+    blendSel.value = "difference";
+
+    // YouTube API ready hook
+    function onYouTubeIframeAPIReady() {
+      loadAll();
+    }
+    window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
   </script>
 </body>
 </html>
