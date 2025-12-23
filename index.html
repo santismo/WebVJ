@@ -1,1308 +1,1191 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>YouTube Overlay VJ + FX Stack</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>VJ Mixer (YouTube Links) + FX Capture Mode</title>
   <style>
     :root{
       --bg:#07080c;
       --panel:#0f1118;
       --panel2:#0b0d13;
-      --text:#eef1f7;
-      --muted:#a9b0bf;
-      --border:rgba(255,255,255,.10);
+      --text:#e9edf6;
+      --muted:#9aa3b5;
+      --border:rgba(255,255,255,.12);
       --accent:#7aa2ff;
-      --maxw:1100px;
-      --radius:14px;
+      --accent2:#ff7bd3;
+      --radius:16px;
+      --maxw:1200px;
     }
-    html,body{background:var(--bg); color:var(--text); margin:0; font-family:system-ui,-apple-system,sans-serif;}
-    .wrap{max-width:var(--maxw); margin:16px auto; padding:0 14px; display:grid; gap:12px;}
-    h1{font-size:18px; margin:0;}
-    .topbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;}
-    .btnrow{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+    .wrap{max-width:var(--maxw);margin:16px auto;padding:0 14px;display:grid;gap:12px;}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .title{display:grid;gap:4px}
+    h1{margin:0;font-size:18px;letter-spacing:.2px}
+    .sub{font-size:12px;color:var(--muted);line-height:1.25}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     button{
-      background:var(--panel);
-      color:var(--text);
+      background:rgba(255,255,255,.04);
       border:1px solid var(--border);
-      border-radius:12px;
-      padding:10px 12px;
-      font-size:15px;
+      color:var(--text);
+      border-radius:999px;
+      padding:10px 14px;
+      font-size:14px;
+      cursor:pointer;
     }
     button.primary{
       border-color:rgba(122,162,255,.55);
       box-shadow:0 0 0 2px rgba(122,162,255,.10) inset;
     }
-    button.ghost{background:transparent}
-    .hint{font-size:12px; color:var(--muted); line-height:1.25;}
-    .hint b{color:var(--text);}
+    button.danger{border-color:rgba(255,130,130,.5)}
+    button:active{transform:translateY(1px)}
+    .seg{
+      display:flex; gap:6px; padding:6px; border:1px solid var(--border);
+      background:rgba(255,255,255,.03); border-radius:999px;
+    }
+    .seg button{
+      border-radius:999px; padding:8px 12px; border:1px solid transparent;
+      background:transparent;
+    }
+    .seg button.active{
+      background:rgba(122,162,255,.18);
+      border-color:rgba(122,162,255,.35);
+    }
 
     .stage{
       position:relative;
-      width:min(96vw,var(--maxw));
+      width:100%;
       aspect-ratio:16/9;
       border-radius:var(--radius);
       overflow:hidden;
-      background:#000;
       border:1px solid var(--border);
+      background:#000;
       isolation:isolate;
-      touch-action:manipulation;
     }
-    .stage:fullscreen{
-      width:100vw; height:100vh; aspect-ratio:auto;
-      border-radius:0; border:none;
-    }
-
-    /* IMPORTANT: YouTube players should not be mounted into display:none containers. */
-    .layer{
-      position:absolute; inset:0;
-      transform-origin:50% 50%;
-      pointer-events:none;
-      will-change: transform, filter, opacity;
-      display:block;
-      opacity:1;
-      clip-path:none;
-    }
-    .layer.base{pointer-events:auto;}
-    .layer iframe{width:100%; height:100%; border:0; display:block;}
-    .hidden{display:none !important;}
-
-    /* Overlay FX surfaces (NOT iframes) */
-    .fxSurf{
-      position:absolute; inset:0;
-      pointer-events:none;
-      opacity:0;
-      mix-blend-mode:difference; /* default; can change per FX */
-      z-index:50;
-    }
-    canvas.fxSurf{image-rendering:auto;}
-    #scanlines{
-      background:repeating-linear-gradient(
-        to bottom,
-        rgba(255,255,255,.10) 0px,
-        rgba(255,255,255,.10) 1px,
-        rgba(0,0,0,0) 3px,
-        rgba(0,0,0,0) 7px
-      );
-      filter:contrast(110%);
-    }
-    #vignette{
-      background:radial-gradient(circle at center, rgba(0,0,0,0) 45%, rgba(0,0,0,.72) 100%);
-      mix-blend-mode:multiply;
-    }
-    #rollbar{
-      background:linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,.22) 50%, rgba(255,255,255,0) 100%);
-      transform:translateY(-140%);
-      filter:blur(0.3px);
-    }
-    #ascii{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      color: rgba(255,255,255,.65);
-      font-size: 10px;
-      line-height: 10px;
-      white-space: pre;
-      padding: 8px;
-      overflow:hidden;
-      text-shadow: 0 0 10px rgba(122,162,255,.22);
-    }
-
-    .playOverlay{
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      background:linear-gradient(to bottom, rgba(0,0,0,.15), rgba(0,0,0,.70));
-      backdrop-filter: blur(2px);
-      opacity:0; pointer-events:none;
-      transition:opacity .2s ease;
-      z-index:90;
-    }
-    .playOverlay.show{opacity:1; pointer-events:auto;}
-    .playOverlay button{
-      font-size:16px;
-      padding:12px 16px;
-      border-radius:999px;
-      background:rgba(15,17,24,.75);
-      border:1px solid rgba(122,162,255,.6);
-    }
-
-    /* iOS pseudo-fullscreen fallback */
-    body.pseudo-fs{ overflow:hidden; }
-    body.pseudo-fs .wrap{ max-width:none; margin:0; padding:0; }
-    body.pseudo-fs .topbar, body.pseudo-fs #controlsPanel{ display:none; }
-    body.pseudo-fs .stage{
-      position:fixed; inset:0; width:100vw; height:100vh;
-      border-radius:0; border:none; aspect-ratio:auto;
-      z-index:9999;
-    }
-    body.pseudo-fs .fsHud{ display:flex; }
-
+    .stage:fullscreen{width:100vw;height:100vh;aspect-ratio:auto;border-radius:0;border:none;}
     .fsHud{
-      position:absolute; top:10px; right:10px; left:10px;
+      position:absolute; top:10px; left:10px; right:10px;
       display:none; justify-content:space-between; gap:10px;
-      z-index:95; pointer-events:none;
+      z-index:99; pointer-events:none;
     }
-    .fsHud .hudBtn{
-      pointer-events:auto;
-      background:rgba(15,17,24,.65);
-      border:1px solid rgba(255,255,255,.18);
-      border-radius:999px;
-      padding:9px 12px;
-      font-size:14px;
-      backdrop-filter: blur(6px);
+    .fsHud button{pointer-events:auto;background:rgba(10,12,18,.55);backdrop-filter:blur(8px)}
+    body.pseudo-fs{overflow:hidden;}
+    body.pseudo-fs .wrap{max-width:none;margin:0;padding:0;}
+    body.pseudo-fs .topbar, body.pseudo-fs #controls{display:none;}
+    body.pseudo-fs .stage{
+      position:fixed; inset:0; width:100vw; height:100vh; aspect-ratio:auto;
+      border-radius:0;border:none; z-index:9999;
+    }
+    body.pseudo-fs .fsHud{display:flex;}
+
+    /* Link mixer layers */
+    .layersRoot{position:absolute;inset:0; z-index:10;}
+    .layer{position:absolute;inset:0;pointer-events:none;will-change:opacity,filter,transform;mix-blend-mode:normal;opacity:1;}
+    .layer iframe{width:100%;height:100%;border:0;display:block;}
+
+    /* FX output canvas */
+    canvas#fxOut{
+      position:absolute; inset:0; width:100%; height:100%;
+      display:none; z-index:30;
     }
 
-    .panel{
-      background:var(--panel2);
+    /* Tap-to-start overlay (for autoplay restrictions) */
+    .gate{
+      position:absolute; inset:0; display:none;
+      align-items:center; justify-content:center;
+      background:linear-gradient(to bottom, rgba(0,0,0,.10), rgba(0,0,0,.75));
+      z-index:80;
+    }
+    .gate.show{display:flex;}
+    .gate button{background:rgba(10,12,18,.65);backdrop-filter:blur(8px);}
+
+    /* Controls */
+    .controls{
+      background:rgba(255,255,255,.03);
       border:1px solid var(--border);
       border-radius:var(--radius);
       overflow:hidden;
     }
-    .panelHead{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:12px; gap:10px;
+    .controlsHead{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+      padding:12px 12px;
       border-bottom:1px solid var(--border);
     }
-    .panelBody{padding:12px; display:none;}
-    .panel.open .panelBody{display:block;}
-    .mini{display:flex; gap:8px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:12px;}
-    .pill{
+    .controlsHead .left{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .badge{
+      font-size:12px;color:var(--muted);
       border:1px solid var(--border);
-      padding:3px 8px;
-      border-radius:999px;
-      background:rgba(255,255,255,.03);
+      padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.02);
     }
+    .controlsBody{display:none;padding:12px;gap:12px}
+    .controls.open .controlsBody{display:grid;}
+    .grid{display:grid;grid-template-columns: 1fr 1fr; gap:12px;}
+    @media (max-width: 980px){.grid{grid-template-columns: 1fr;}}
 
     .card{
       border:1px solid var(--border);
       border-radius:var(--radius);
-      background:rgba(255,255,255,.02);
+      background:rgba(0,0,0,.22);
       overflow:hidden;
-      margin-bottom:12px;
     }
     .cardHead{
-      padding:10px 12px;
-      display:flex; gap:10px; flex-wrap:wrap;
-      align-items:center; justify-content:space-between;
-      border-bottom:1px solid var(--border);
+      padding:10px 12px; border-bottom:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
     }
-    .cardTitle{font-weight:700; font-size:14px;}
-    .row{
-      display:grid; gap:10px;
-      grid-template-columns:1fr 1fr;
-      padding:12px;
-    }
-    @media (max-width:820px){ .row{grid-template-columns:1fr;} }
-
-    label{display:grid; gap:6px; font-size:13px; color:var(--muted);}
-    input[type="text"], select{
-      width:100%;
-      padding:10px;
+    .cardTitle{font-weight:700;font-size:13px;color:var(--text); letter-spacing:.2px}
+    .cardBody{padding:12px;display:grid;gap:10px}
+    label{display:grid;gap:6px;font-size:12px;color:var(--muted);}
+    input[type="text"], select, input[type="number"]{
+      width:100%; padding:10px 10px;
       border-radius:12px;
       border:1px solid var(--border);
       background:rgba(0,0,0,.30);
       color:var(--text);
-      font-size:15px;
+      font-size:14px;
       outline:none;
     }
     input[type="range"]{width:100%;}
-    .toggle{display:flex; gap:8px; align-items:center; color:var(--muted); font-size:13px; user-select:none;}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width: 740px){.row{grid-template-columns:1fr;}}
+    .toggle{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;user-select:none}
     .toggle input{transform:scale(1.05)}
-    .btnGroup{display:flex; gap:10px; flex-wrap:wrap; padding:12px;}
-    .btnGroup button{padding:9px 11px; font-size:14px;}
-    .small{font-size:12px; color:var(--muted); padding:0 12px 12px;}
-    .divider{height:1px; background:var(--border); margin:0 12px;}
+    .small{font-size:12px;color:var(--muted);line-height:1.25}
 
-    .presetBtn.active{
-      border-color: rgba(122,162,255,.85);
-      box-shadow: 0 0 0 2px rgba(122,162,255,.16) inset;
+    .pillrow{display:flex;gap:8px;flex-wrap:wrap}
+    .pill{
+      font-size:12px;color:var(--muted);
+      border:1px solid var(--border);
+      padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.02);
     }
+
+    /* Mode sections */
+    .modeBlock{display:none;}
+    .modeBlock.active{display:block;}
+
+    /* Layer list */
+    .layerList{display:grid;gap:10px}
+    .layerItem{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.02);overflow:hidden}
+    .layerItemHead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border);}
+    .layerItemHead .name{font-weight:700;font-size:13px}
+    .layerItemBody{padding:12px;display:grid;gap:10px}
+    .miniBtns{display:flex;gap:8px;flex-wrap:wrap}
+    .miniBtns button{padding:8px 10px;font-size:12px}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="topbar">
-      <div>
-        <h1>YouTube Overlay VJ + FX Stack</h1>
-        <div class="hint">
-          Base+Overlay are YouTube iframes. “Shader-y” stuff is done with <b>procedural overlays</b> (canvas/div) + per-FX blend modes.
-          <br/>All FX are <b>OFF</b> by default.
-        </div>
-      </div>
-      <div class="btnrow">
-        <button id="applyBtn" class="ghost">Apply URLs</button>
-        <button id="playBtn" class="primary">Play</button>
-        <button id="pauseBtn">Pause</button>
-        <button id="fsBtn">Full screen</button>
-        <button id="controlsBtn">Expand controls</button>
+<div class="wrap">
+  <div class="topbar">
+    <div class="title">
+      <h1>VJ Mixer</h1>
+      <div class="sub">
+        Two modes: <b>Link Mixer</b> (YouTube URLs, no FX) and <b>FX Capture</b> (tab/window capture, real FX).
+        Capture requires a tap and the browser picker.
       </div>
     </div>
-
-    <div class="stage" id="stage">
-      <div class="fsHud" id="fsHud">
-        <button class="hudBtn" id="hudPlay">Play</button>
-        <button class="hudBtn" id="hudExit">Exit</button>
+    <div class="actions">
+      <div class="seg" role="tablist" aria-label="Mode">
+        <button id="tabLinks" class="active" role="tab">Link Mixer</button>
+        <button id="tabFX" role="tab">FX Capture</button>
       </div>
-
-      <!-- YouTube layers -->
-      <div id="layer0" class="layer base"></div>
-      <div id="layer1" class="layer"></div>
-      <div id="layer2" class="layer hidden"></div>
-      <div id="layer3" class="layer hidden"></div>
-      <div id="layer4" class="layer hidden"></div>
-
-      <!-- Procedural FX surfaces -->
-      <canvas id="fxNoise" class="fxSurf"></canvas>
-      <canvas id="fxBars" class="fxSurf"></canvas>
-      <canvas id="fxGrad" class="fxSurf"></canvas>
-      <canvas id="fxDots" class="fxSurf"></canvas>
-
-      <div id="scanlines" class="fxSurf"></div>
-      <div id="vignette" class="fxSurf"></div>
-      <div id="rollbar" class="fxSurf"></div>
-      <div id="ascii" class="fxSurf"></div>
-
-      <div class="playOverlay" id="playOverlay">
-        <button id="tapPlayBtn">Tap to Play</button>
-      </div>
-    </div>
-
-    <div class="panel" id="controlsPanel">
-      <div class="panelHead">
-        <div class="mini">
-          <span class="pill">echo layers load on-demand</span>
-          <span class="pill">each FX has its own blend mode</span>
-          <span class="pill">iOS pseudo-fullscreen fallback</span>
-        </div>
-        <div class="btnrow">
-          <button id="hidePanelBtn" class="ghost">Hide</button>
-        </div>
-      </div>
-
-      <div class="panelBody">
-        <!-- SOURCES -->
-        <div class="card">
-          <div class="cardHead"><div class="cardTitle">Sources</div></div>
-          <div class="row">
-            <label>Base URL
-              <input id="url0" type="text">
-            </label>
-            <label>Overlay URL
-              <input id="url1" type="text">
-            </label>
-          </div>
-
-          <div class="row">
-            <label>Base opacity
-              <input id="op0" type="range" min="0" max="1" step="0.01" value="1">
-            </label>
-            <label>Overlay opacity
-              <input id="op1" type="range" min="0" max="1" step="0.01" value="0.85">
-            </label>
-          </div>
-
-          <div class="row">
-            <label>Overlay blend mode
-              <select id="blend1"></select>
-            </label>
-            <label>Overlay invert (default max)
-              <input id="inv1" type="range" min="0" max="1" step="0.01" value="1">
-            </label>
-          </div>
-
-          <div class="row">
-            <label>Overlay contrast
-              <input id="ct1" type="range" min="0.5" max="3" step="0.01" value="1.6">
-            </label>
-            <label>Overlay saturation
-              <input id="sat1" type="range" min="0" max="3" step="0.01" value="1.2">
-            </label>
-          </div>
-
-          <div class="btnGroup">
-            <button id="muteBaseBtn">Unmute base</button>
-            <button id="muteOvBtn">Unmute overlay</button>
-          </div>
-          <div class="small">
-            Use <b>Apply URLs</b> after changing links. If autoplay is blocked, hit <b>Play</b> or tap the overlay.
-          </div>
-        </div>
-
-        <!-- FX TOGGLES -->
-        <div class="card">
-          <div class="cardHead"><div class="cardTitle">FX toggles (all off by default)</div></div>
-
-          <!-- Echo-based (iframe duplication) -->
-          <div class="row">
-            <label class="toggle"><input id="fxTrailOn" type="checkbox"> Trail / Echo (echo iframes)</label>
-            <label>Amount <input id="fxTrailAmt" type="range" min="0" max="1" step="0.01" value="0.80"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxTrailBlend"></select></label>
-            <label>Blur <input id="fxTrailBlur" type="range" min="0" max="12" step="0.1" value="4.2"></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxRGBOn" type="checkbox"> RGB Shift (echo iframes)</label>
-            <label>Amount <input id="fxRGBAmt" type="range" min="0" max="1" step="0.01" value="0.85"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxRGBBlend"></select></label>
-            <label>Separation <input id="fxRGBSep" type="range" min="0" max="8" step="0.1" value="3.8"></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxFeedbackOn" type="checkbox"> Feedback Tunnel (echo illusion)</label>
-            <label>Amount <input id="fxFeedbackAmt" type="range" min="0" max="1" step="0.01" value="0.90"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxFeedbackBlend"></select></label>
-            <label>Zoom <input id="fxFeedbackZoom" type="range" min="0" max="0.25" step="0.005" value="0.12"></label>
-          </div>
-          <div class="row">
-            <label>Rotate speed <input id="fxFeedbackRot" type="range" min="0" max="30" step="0.2" value="12"></label>
-            <label>Drift <input id="fxFeedbackDrift" type="range" min="0" max="8" step="0.1" value="3.0"></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxMirrorOn" type="checkbox"> Mirror / Quad (“kaleido-ish”, echo + clip)</label>
-            <label>Mode
-              <select id="fxMirrorMode">
-                <option value="quad">quad</option>
-                <option value="mx">mirror X</option>
-                <option value="my">mirror Y</option>
-                <option value="mxy">mirror X+Y</option>
-              </select>
-            </label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxMirrorBlend"></select></label>
-            <label>Amount <input id="fxMirrorAmt" type="range" min="0" max="1" step="0.01" value="0.85"></label>
-          </div>
-
-          <div class="divider"></div>
-
-          <!-- Procedural overlays (not iframes) -->
-          <div class="row">
-            <label class="toggle"><input id="fxNoiseOn" type="checkbox"> Noise (canvas)</label>
-            <label>Amount <input id="fxNoiseAmt" type="range" min="0" max="1" step="0.01" value="0.65"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxNoiseBlend"></select></label>
-            <label>Scale <input id="fxNoiseScale" type="range" min="1" max="6" step="0.1" value="2.2"></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxBarsOn" type="checkbox"> Glitch Bars / Tearing (canvas)</label>
-            <label>Amount <input id="fxBarsAmt" type="range" min="0" max="1" step="0.01" value="0.75"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxBarsBlend"></select></label>
-            <label>Density <input id="fxBarsDen" type="range" min="0" max="1" step="0.01" value="0.55"></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxGradOn" type="checkbox"> Gradient Wash (canvas)</label>
-            <label>Amount <input id="fxGradAmt" type="range" min="0" max="1" step="0.01" value="0.55"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxGradBlend"></select></label>
-            <label>Speed <input id="fxGradSpd" type="range" min="0" max="3" step="0.02" value="1.2"></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxDotsOn" type="checkbox"> Dot Grid / Halftone-ish (canvas)</label>
-            <label>Amount <input id="fxDotsAmt" type="range" min="0" max="1" step="0.01" value="0.55"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxDotsBlend"></select></label>
-            <label>Dot size <input id="fxDotsSize" type="range" min="2" max="18" step="0.5" value="7"></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxScanOn" type="checkbox"> Scanlines (div)</label>
-            <label>Amount <input id="fxScanAmt" type="range" min="0" max="1" step="0.01" value="0.70"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxScanBlend"></select></label>
-            <label class="toggle"><input id="fxVigOn" type="checkbox"> Vignette (div)</label>
-          </div>
-          <div class="row">
-            <label>Vignette amount <input id="fxVigAmt" type="range" min="0" max="1" step="0.01" value="0.70"></label>
-            <label>Blend <select id="fxVigBlend"></select></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxRollOn" type="checkbox"> Rolling Bar (div)</label>
-            <label>Amount <input id="fxRollAmt" type="range" min="0" max="1" step="0.01" value="0.60"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxRollBlend"></select></label>
-            <label>Speed <input id="fxRollSpd" type="range" min="0" max="3" step="0.02" value="1.1"></label>
-          </div>
-
-          <div class="row">
-            <label class="toggle"><input id="fxAsciiOn" type="checkbox"> Fake ASCII texture (div)</label>
-            <label>Amount <input id="fxAsciiAmt" type="range" min="0" max="1" step="0.01" value="0.55"></label>
-          </div>
-          <div class="row">
-            <label>Blend <select id="fxAsciiBlend"></select></label>
-            <label>Density <input id="fxAsciiDen" type="range" min="0.2" max="1.5" step="0.02" value="0.9"></label>
-          </div>
-
-          <div class="divider"></div>
-          <div class="btnGroup">
-            <button id="fxAllOff" class="ghost">All FX Off</button>
-          </div>
-          <div class="small">
-            True pixel-shaders (real ASCII conversion / true kaleidoscope slicing) aren’t possible on YouTube iframes. This page does the “VJ feel” using echo layers + procedural overlays.
-          </div>
-        </div>
-
-        <!-- PRESETS -->
-        <div class="card">
-          <div class="cardHead"><div class="cardTitle">Presets</div></div>
-          <div class="btnGroup">
-            <button class="presetBtn ghost active" id="pNone">None</button>
-            <button class="presetBtn" id="pTrip">Trip Default</button>
-            <button class="presetBtn" id="pNeon">Neon CRT</button>
-            <button class="presetBtn" id="pGlitch">Glitch Stack</button>
-            <button class="presetBtn" id="pKaleido">Kaleido Quad</button>
-            <button class="presetBtn" id="pFeedback">Feedback Spiral</button>
-          </div>
-          <div class="small">
-            Presets simply toggle FX and set amounts/blends. Tweak anything afterwards.
-          </div>
-        </div>
-      </div>
+      <button id="btnPlay" class="primary">Play</button>
+      <button id="btnPause">Pause</button>
+      <button id="btnFullscreen">Fullscreen</button>
+      <button id="btnToggleControls">Show Controls</button>
     </div>
   </div>
 
-  <script>
-    // ------------------------
-    // Defaults + constants
-    // ------------------------
-    const DEFAULT0 = "https://m.youtube.com/watch?v=3pxrECZYEAA&pp=ygUOdmlzdWFscyB0cmlwcHk%3D";
-    const DEFAULT1 = "https://m.youtube.com/watch?v=dS-MaUk6YBI";
+  <div class="stage" id="stage">
+    <div class="fsHud" id="fsHud">
+      <button id="hudPlay">Play</button>
+      <button id="hudExit">Exit</button>
+    </div>
 
-    const BLENDS = [
-      "normal","multiply","screen","overlay","darken","lighten","color-dodge","color-burn",
-      "hard-light","soft-light","difference","exclusion","hue","saturation","color","luminosity"
-    ];
+    <!-- Link mixer layers (iframes) -->
+    <div class="layersRoot" id="layersRoot"></div>
 
-    const players = new Array(5).fill(null);   // 0..4 (YT)
-    const loadedIds = new Array(5).fill(null); // videoId per layer
-    let mutedBase = true;
-    let mutedOv = true;
+    <!-- FX output -->
+    <canvas id="fxOut"></canvas>
 
-    // Layer CSS state (for echo layers too)
-    const cfg = Array.from({length:5}, () => ({
-      enabled:false,
-      opacity:1,
-      blend:"normal",
-      inv:0, ct:1, br:1, sat:1, hue:0, blur:0,
-      x:0, y:0, scale:1, rot:0,
-      flipX:false, flipY:false,
-      clip:"none"
-    }));
+    <div class="gate" id="gate">
+      <button id="gateBtn" class="primary">Tap to Start</button>
+    </div>
+  </div>
 
-    // Canvas contexts
-    const canv = {};
-    const ctx  = {};
+  <div class="controls" id="controls">
+    <div class="controlsHead">
+      <div class="left">
+        <span class="badge" id="modeBadge">Mode: Link Mixer</span>
+        <div class="pillrow">
+          <span class="pill">Dark UI</span>
+          <span class="pill">2–5 links</span>
+          <span class="pill">FX are only in Capture mode</span>
+        </div>
+      </div>
+      <div class="small" id="status">Status: idle</div>
+    </div>
 
-    // ASCII chars
-    const ASCII_CHARS = " .,:;i1tfLCG08@#";
+    <div class="controlsBody" id="controlsBody">
+      <!-- MODE: LINKS -->
+      <div class="modeBlock active" id="modeLinks">
+        <div class="grid">
+          <div class="card">
+            <div class="cardHead">
+              <div class="cardTitle">Links (2–5)</div>
+              <div class="miniBtns">
+                <button id="addLayer">Add</button>
+                <button id="removeLayer" class="danger">Remove</button>
+                <button id="reloadLinks">Reload</button>
+              </div>
+            </div>
+            <div class="cardBody">
+              <label>Tap-through YouTube UI
+                <select id="tapUI">
+                  <option value="off" selected>off (recommended)</option>
+                  <option value="on">on</option>
+                </select>
+              </label>
+              <div class="small">
+                In Link Mixer mode, FX are not possible on YouTube pixels. This mode is a stable multi-link blend stack.
+              </div>
+              <div class="layerList" id="layerList"></div>
+            </div>
+          </div>
 
-    // ------------------------
-    // DOM helpers
-    // ------------------------
-    const $ = (id) => document.getElementById(id);
+          <div class="card">
+            <div class="cardHead"><div class="cardTitle">Mixer Tips</div></div>
+            <div class="cardBody">
+              <div class="small">
+                • Autoplay often requires a tap. Use “Tap to Start” if you see a black screen.<br/>
+                • Keep Tap-through UI off to reduce YouTube overlays/controls popping up.<br/>
+                • Use Difference + Invert on upper layers for “VJ-ish” looks without pixel FX.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    function fillBlendSelect(selId, defaultVal="difference"){
-      const sel = $(selId);
-      sel.innerHTML = BLENDS.map(m => `<option value="${m}">${m}</option>`).join("");
-      sel.value = defaultVal;
-    }
+      <!-- MODE: FX CAPTURE -->
+      <div class="modeBlock" id="modeFX">
+        <div class="grid">
+          <div class="card">
+            <div class="cardHead">
+              <div class="cardTitle">Capture Sources (Tab/Window)</div>
+              <div class="miniBtns">
+                <button id="capA" class="primary">Capture A</button>
+                <button id="capB" class="primary">Capture B</button>
+                <button id="stopCap">Stop Capture</button>
+              </div>
+            </div>
+            <div class="cardBody">
+              <div class="small">
+                Use the browser picker to choose a <b>YouTube tab</b> or a <b>window</b> for A and B.
+                If your browser won’t allow two captures, capture A only and mirror/feedback it for B-like layering.
+                Some protected videos may appear black depending on OS/browser/video.
+              </div>
 
-    function extractVideoId(url) {
-      if (!url) return null;
-      const raw = url.trim();
-      if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) return raw;
-      try {
-        const u = new URL(raw);
-        if (u.hostname.includes("youtu.be")) return u.pathname.replace("/", "") || null;
-        const v = u.searchParams.get("v");
-        if (v) return v;
-        const parts = u.pathname.split("/").filter(Boolean);
-        const embedIdx = parts.indexOf("embed");
-        if (embedIdx >= 0 && parts[embedIdx + 1]) return parts[embedIdx + 1];
-      } catch (e) {}
-      return null;
-    }
+              <div class="row">
+                <label>Blend (B over A)
+                  <select id="fxBlend">
+                    <option value="difference" selected>difference</option>
+                    <option value="screen">screen</option>
+                    <option value="add">add</option>
+                    <option value="multiply">multiply</option>
+                    <option value="overlay">overlay</option>
+                    <option value="exclusion">exclusion</option>
+                    <option value="normal">normal</option>
+                  </select>
+                </label>
+                <label>B Opacity
+                  <input id="fxBOpacity" type="range" min="0" max="1" step="0.01" value="0.85">
+                </label>
+              </div>
 
-    // ------------------------
-    // YouTube player lifecycle
-    // ------------------------
-    function setLayerVisibleForYT(i){
-      const layer = $(`layer${i}`);
-      layer.classList.remove("hidden");
-      layer.style.display = "block";
-      layer.style.opacity = "1";
-    }
+              <div class="row">
+                <label>Invert B
+                  <input id="fxInvB" type="range" min="0" max="1" step="0.01" value="1">
+                </label>
+                <label>Exposure
+                  <input id="fxExposure" type="range" min="0.5" max="2.5" step="0.01" value="1.05">
+                </label>
+              </div>
 
-    function destroyPlayer(i){
-      try { players[i] && players[i].destroy && players[i].destroy(); } catch(e){}
-      players[i] = null;
-      loadedIds[i] = null;
-      $(`layer${i}`).innerHTML = "";
-    }
+              <div class="row">
+                <label>Contrast
+                  <input id="fxContrast" type="range" min="0.5" max="3.0" step="0.01" value="1.35">
+                </label>
+                <label>Saturation
+                  <input id="fxSat" type="range" min="0" max="3" step="0.01" value="1.25">
+                </label>
+              </div>
+            </div>
+          </div>
 
-    function mountPlayer(i, videoId){
-      setLayerVisibleForYT(i);
-      const layer = $(`layer${i}`);
-      layer.innerHTML = `<div id="player${i}"></div>`;
-      players[i] = new YT.Player(`player${i}`, {
-        videoId,
-        playerVars: { playsinline: 1, rel: 0 },
-        events: {
-          onReady: (e) => { try { e.target.mute(); } catch(err){} }
-        }
-      });
-      loadedIds[i] = videoId;
-    }
+          <div class="card">
+            <div class="cardHead"><div class="cardTitle">FX (Real post-processing)</div></div>
+            <div class="cardBody">
+              <div class="row">
+                <label class="toggle"><input id="tFeedback" type="checkbox"> Feedback / Trails</label>
+                <label>Amount
+                  <input id="feedbackAmt" type="range" min="0" max="0.98" step="0.001" value="0.88">
+                </label>
+              </div>
+              <div class="row">
+                <label>Zoom
+                  <input id="feedbackZoom" type="range" min="-0.08" max="0.12" step="0.001" value="0.06">
+                </label>
+                <label>Rotate
+                  <input id="feedbackRot" type="range" min="-2.5" max="2.5" step="0.01" value="0.12">
+                </label>
+              </div>
 
-    async function tryAutoplayMuted(){
-      let attempted = false;
-      for (let i=0;i<5;i++){
-        if (i>=2 && !cfg[i].enabled) continue;
-        try{
-          if (players[i]){
-            players[i].mute();
-            players[i].playVideo();
-            attempted = true;
-          }
-        } catch(e){}
+              <div class="row">
+                <label class="toggle"><input id="tKaleido" type="checkbox"> Kaleido / Mirror</label>
+                <label>Segments
+                  <input id="kSeg" type="range" min="2" max="16" step="1" value="6">
+                </label>
+              </div>
+              <div class="row">
+                <label>Amount
+                  <input id="kAmt" type="range" min="0" max="1" step="0.01" value="0.85">
+                </label>
+                <label>Spin
+                  <input id="kSpin" type="range" min="-3" max="3" step="0.01" value="0.35">
+                </label>
+              </div>
+
+              <div class="row">
+                <label class="toggle"><input id="tRGB" type="checkbox"> RGB Shift</label>
+                <label>Amount
+                  <input id="rgbAmt" type="range" min="0" max="0.05" step="0.0005" value="0.012">
+                </label>
+              </div>
+
+              <div class="row">
+                <label class="toggle"><input id="tGlitch" type="checkbox"> Glitch</label>
+                <label>Amount
+                  <input id="glitchAmt" type="range" min="0" max="1" step="0.01" value="0.35">
+                </label>
+              </div>
+
+              <div class="row">
+                <label class="toggle"><input id="tPixel" type="checkbox"> Pixelate</label>
+                <label>Size
+                  <input id="pixSize" type="range" min="1" max="220" step="1" value="70">
+                </label>
+              </div>
+
+              <div class="row">
+                <label class="toggle"><input id="tScan" type="checkbox"> Scanlines</label>
+                <label>Amount
+                  <input id="scanAmt" type="range" min="0" max="1" step="0.01" value="0.35">
+                </label>
+              </div>
+
+              <div class="row">
+                <label class="toggle"><input id="tVig" type="checkbox"> Vignette</label>
+                <label>Amount
+                  <input id="vigAmt" type="range" min="0" max="1" step="0.01" value="0.55">
+                </label>
+              </div>
+
+              <div class="miniBtns">
+                <button id="fxAllOff">All FX Off</button>
+              </div>
+
+              <div class="small">
+                This mode is the “real FX” route: capture pixels → shader them.
+                If YouTube shows black, try another video, another browser, or “Entire Screen” capture via a desktop browser.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /modeFX -->
+    </div><!-- /controlsBody -->
+  </div><!-- /controls -->
+</div><!-- /wrap -->
+
+<script>
+/* ============================================================
+   MODE + UI STATE
+============================================================ */
+const $ = (id)=>document.getElementById(id);
+
+let currentMode = "links"; // "links" or "fx"
+function setMode(mode){
+  currentMode = mode;
+  $("tabLinks").classList.toggle("active", mode==="links");
+  $("tabFX").classList.toggle("active", mode==="fx");
+  $("modeLinks").classList.toggle("active", mode==="links");
+  $("modeFX").classList.toggle("active", mode==="fx");
+
+  $("modeBadge").textContent = mode==="links" ? "Mode: Link Mixer" : "Mode: FX Capture";
+  $("layersRoot").style.display = mode==="links" ? "block" : "none";
+  $("fxOut").style.display = mode==="fx" ? "block" : "none";
+  $("status").textContent = "Status: " + (mode==="links" ? "Link Mixer ready" : "FX Capture ready");
+}
+
+$("tabLinks").addEventListener("click", ()=>setMode("links"));
+$("tabFX").addEventListener("click", ()=>setMode("fx"));
+
+const controls = $("controls");
+$("btnToggleControls").addEventListener("click", ()=>{
+  controls.classList.toggle("open");
+  $("btnToggleControls").textContent = controls.classList.contains("open") ? "Hide Controls" : "Show Controls";
+});
+controls.classList.remove("open");
+$("btnToggleControls").textContent = "Show Controls";
+
+/* ============================================================
+   FULLSCREEN (real + pseudo fallback)
+============================================================ */
+function canRealFullscreen(){
+  return !!($("stage").requestFullscreen && document.fullscreenEnabled);
+}
+async function toggleFullscreen(){
+  const stage = $("stage");
+  if (document.body.classList.contains("pseudo-fs")){
+    document.body.classList.remove("pseudo-fs");
+    return;
+  }
+  if (canRealFullscreen()){
+    try{
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await stage.requestFullscreen();
+      return;
+    }catch(e){}
+  }
+  document.body.classList.add("pseudo-fs");
+}
+$("btnFullscreen").addEventListener("click", toggleFullscreen);
+$("hudExit").addEventListener("click", toggleFullscreen);
+
+/* ============================================================
+   TRANSPORT
+============================================================ */
+$("btnPlay").addEventListener("click", ()=>playAll());
+$("btnPause").addEventListener("click", ()=>pauseAll());
+$("hudPlay").addEventListener("click", ()=>playAll());
+$("gateBtn").addEventListener("click", ()=>playAll());
+
+function showGate(show){
+  $("gate").classList.toggle("show", !!show);
+}
+
+/* ============================================================
+   MODE 1: LINK MIXER (YouTube iframes, no FX)
+============================================================ */
+const DEFAULT_LINKS = [
+  "https://m.youtube.com/watch?v=3pxrECZYEAA",
+  "https://m.youtube.com/watch?v=dS-MaUk6YBI"
+];
+const BLENDS = [
+  "normal","multiply","screen","overlay","darken","lighten","color-dodge","color-burn",
+  "hard-light","soft-light","difference","exclusion","hue","saturation","color","luminosity"
+];
+
+let linkLayerCount = 2;
+const linkLayers = []; // {el, ui, url}
+function extractVideoId(url){
+  if (!url) return null;
+  const raw = url.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(raw)) return raw;
+  try{
+    const u = new URL(raw);
+    if (u.hostname.includes("youtu.be")) return u.pathname.replace("/","") || null;
+    const v = u.searchParams.get("v");
+    if (v) return v;
+    const parts = u.pathname.split("/").filter(Boolean);
+    const idx = parts.indexOf("embed");
+    if (idx>=0 && parts[idx+1]) return parts[idx+1];
+  }catch(e){}
+  return null;
+}
+function buildEmbedSrc(videoId){
+  const origin = encodeURIComponent(location.origin);
+  // best effort UI suppression
+  return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=0&playsinline=1&autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&fs=0&disablekb=1&origin=${origin}`;
+}
+function fillBlendOptions(sel, def="difference"){
+  sel.innerHTML = BLENDS.map(b=>`<option value="${b}">${b}</option>`).join("");
+  sel.value = def;
+}
+function makeLinkLayer(i){
+  const el = document.createElement("div");
+  el.className = "layer";
+  el.style.zIndex = String(10 + i);
+  $("layersRoot").appendChild(el);
+  return el;
+}
+function applyLinkStyle(i){
+  const L = linkLayers[i];
+  if (!L) return;
+  const tap = $("tapUI").value === "on";
+  L.el.style.pointerEvents = tap ? "auto" : "none";
+  L.el.style.opacity = L.ui.op;
+  L.el.style.mixBlendMode = L.ui.blend;
+  L.el.style.filter = `invert(${L.ui.inv}) contrast(${L.ui.ct}) saturate(${L.ui.sat}) hue-rotate(${L.ui.hue}deg)`;
+}
+function mountLinkIframe(i){
+  const L = linkLayers[i];
+  const vid = extractVideoId(L.url);
+  if (!vid){
+    L.el.innerHTML = "";
+    return;
+  }
+  const src = buildEmbedSrc(vid);
+  L.el.innerHTML = `<iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen="false" src="${src}"></iframe>`;
+}
+function rebuildLinkUI(){
+  const list = $("layerList");
+  list.innerHTML = "";
+
+  for (let i=0;i<linkLayerCount;i++){
+    const item = document.createElement("div");
+    item.className = "layerItem";
+    item.innerHTML = `
+      <div class="layerItemHead">
+        <div class="name">Layer ${i+1}</div>
+        <div class="miniBtns">
+          <button data-act="apply" data-i="${i}">Apply</button>
+        </div>
+      </div>
+      <div class="layerItemBody">
+        <label>YouTube URL or ID
+          <input type="text" data-f="url" data-i="${i}"/>
+        </label>
+        <div class="row">
+          <label>Opacity
+            <input type="range" min="0" max="1" step="0.01" data-f="op" data-i="${i}"/>
+          </label>
+          <label>Blend
+            <select data-f="blend" data-i="${i}"></select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Invert
+            <input type="range" min="0" max="1" step="0.01" data-f="inv" data-i="${i}"/>
+          </label>
+          <label>Contrast
+            <input type="range" min="0.5" max="3" step="0.01" data-f="ct" data-i="${i}"/>
+          </label>
+        </div>
+        <div class="row">
+          <label>Saturation
+            <input type="range" min="0" max="3" step="0.01" data-f="sat" data-i="${i}"/>
+          </label>
+          <label>Hue rotate
+            <input type="range" min="-180" max="180" step="1" data-f="hue" data-i="${i}"/>
+          </label>
+        </div>
+      </div>
+    `;
+    list.appendChild(item);
+
+    // seed defaults
+    const L = linkLayers[i];
+    item.querySelector(`[data-f="url"][data-i="${i}"]`).value = L.url;
+
+    item.querySelector(`[data-f="op"][data-i="${i}"]`).value = L.ui.op;
+    item.querySelector(`[data-f="inv"][data-i="${i}"]`).value = L.ui.inv;
+    item.querySelector(`[data-f="ct"][data-i="${i}"]`).value = L.ui.ct;
+    item.querySelector(`[data-f="sat"][data-i="${i}"]`).value = L.ui.sat;
+    item.querySelector(`[data-f="hue"][data-i="${i}"]`).value = L.ui.hue;
+
+    const sel = item.querySelector(`select[data-f="blend"][data-i="${i}"]`);
+    fillBlendOptions(sel, L.ui.blend);
+  }
+}
+function rebuildLinkLayers(){
+  $("layersRoot").innerHTML = "";
+  linkLayers.length = 0;
+  for (let i=0;i<linkLayerCount;i++){
+    const el = makeLinkLayer(i);
+    linkLayers.push({
+      el,
+      url: DEFAULT_LINKS[i] || DEFAULT_LINKS[1],
+      ui: {
+        op: i===0 ? 1 : 0.85,
+        blend: i===0 ? "normal" : "difference",
+        inv: i===0 ? 0 : 1,
+        ct: i===0 ? 1 : 1.6,
+        sat: i===0 ? 1 : 1.2,
+        hue: 0
       }
-      return attempted;
+    });
+    mountLinkIframe(i);
+    applyLinkStyle(i);
+  }
+  rebuildLinkUI();
+}
+$("addLayer").addEventListener("click", ()=>{
+  if (linkLayerCount>=5) return;
+  linkLayerCount++;
+  rebuildLinkLayers();
+});
+$("removeLayer").addEventListener("click", ()=>{
+  if (linkLayerCount<=2) return;
+  linkLayerCount--;
+  rebuildLinkLayers();
+});
+$("reloadLinks").addEventListener("click", ()=>{
+  for (let i=0;i<linkLayerCount;i++){
+    mountLinkIframe(i);
+    applyLinkStyle(i);
+  }
+});
+$("tapUI").addEventListener("change", ()=>{
+  for (let i=0;i<linkLayerCount;i++) applyLinkStyle(i);
+});
+$("layerList").addEventListener("input", (e)=>{
+  const t = e.target;
+  const i = parseInt(t.getAttribute("data-i"), 10);
+  const f = t.getAttribute("data-f");
+  if (Number.isNaN(i) || !f) return;
+
+  const L = linkLayers[i];
+  if (!L) return;
+  if (f==="url") L.url = t.value;
+  if (f==="op") L.ui.op = parseFloat(t.value);
+  if (f==="blend") L.ui.blend = t.value;
+  if (f==="inv") L.ui.inv = parseFloat(t.value);
+  if (f==="ct") L.ui.ct = parseFloat(t.value);
+  if (f==="sat") L.ui.sat = parseFloat(t.value);
+  if (f==="hue") L.ui.hue = parseInt(t.value, 10);
+
+  applyLinkStyle(i);
+});
+$("layerList").addEventListener("click", (e)=>{
+  const btn = e.target.closest("button[data-act]");
+  if (!btn) return;
+  const act = btn.getAttribute("data-act");
+  const i = parseInt(btn.getAttribute("data-i"), 10);
+  if (act==="apply"){
+    mountLinkIframe(i);
+    applyLinkStyle(i);
+  }
+});
+
+/* ============================================================
+   MODE 2: FX CAPTURE (Tab/Window capture → WebGL FX)
+============================================================ */
+let capStreamA = null, capStreamB = null;
+const capVideoA = document.createElement("video");
+const capVideoB = document.createElement("video");
+capVideoA.muted = true; capVideoB.muted = true;
+capVideoA.playsInline = true; capVideoB.playsInline = true;
+
+async function startCapture(which){
+  // which: "A" or "B"
+  try{
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 60 },
+      audio: false
+    });
+    if (which==="A"){
+      capStreamA = stream;
+      capVideoA.srcObject = stream;
+      await capVideoA.play();
+    } else {
+      capStreamB = stream;
+      capVideoB.srcObject = stream;
+      await capVideoB.play();
+    }
+    $("status").textContent = `Status: captured ${which} (choose a Tab or Window)`;
+    showGate(false);
+  }catch(e){
+    $("status").textContent = `Status: capture ${which} canceled/blocked`;
+  }
+}
+
+function stopCaptureAll(){
+  for (const s of [capStreamA, capStreamB]){
+    if (!s) continue;
+    for (const tr of s.getTracks()) tr.stop();
+  }
+  capStreamA = null; capStreamB = null;
+  capVideoA.srcObject = null; capVideoB.srcObject = null;
+  $("status").textContent = "Status: capture stopped";
+}
+
+$("capA").addEventListener("click", ()=>startCapture("A"));
+$("capB").addEventListener("click", ()=>startCapture("B"));
+$("stopCap").addEventListener("click", stopCaptureAll);
+
+// FX toggles helper
+$("fxAllOff").addEventListener("click", ()=>{
+  $("tFeedback").checked = false;
+  $("tKaleido").checked = false;
+  $("tRGB").checked = false;
+  $("tGlitch").checked = false;
+  $("tPixel").checked = false;
+  $("tScan").checked = false;
+  $("tVig").checked = false;
+});
+
+/* ============================================================
+   PLAY / PAUSE for both modes
+============================================================ */
+function playAll(){
+  if (currentMode==="links"){
+    // if autoplay blocked, show gate
+    showGate(true);
+    // iframes manage themselves; gate is just UX
+    setTimeout(()=>showGate(false), 900);
+  } else {
+    // ensure capture videos play
+    if (capVideoA.srcObject) capVideoA.play().catch(()=>{});
+    if (capVideoB.srcObject) capVideoB.play().catch(()=>{});
+  }
+}
+function pauseAll(){
+  if (currentMode==="fx"){
+    capVideoA.pause(); capVideoB.pause();
+  }
+}
+
+/* ============================================================
+   WebGL FX Pipeline (2 inputs + feedback buffer)
+============================================================ */
+const canvas = $("fxOut");
+let gl = null;
+let prog = null;
+let quadVBO = null;
+let texA = null, texB = null;
+let fbTex0 = null, fbTex1 = null;
+let fbFbo0 = null, fbFbo1 = null;
+let ping = 0;
+
+function createShader(gl, type, src){
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+    console.error(gl.getShaderInfoLog(sh));
+    gl.deleteShader(sh);
+    return null;
+  }
+  return sh;
+}
+function createProgram(gl, vsSrc, fsSrc){
+  const vs = createShader(gl, gl.VERTEX_SHADER, vsSrc);
+  const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSrc);
+  if (!vs || !fs) return null;
+  const p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs);
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)){
+    console.error(gl.getProgramInfoLog(p));
+    gl.deleteProgram(p);
+    return null;
+  }
+  gl.deleteShader(vs); gl.deleteShader(fs);
+  return p;
+}
+
+const VS = `
+attribute vec2 aPos;
+varying vec2 vUv;
+void main(){
+  vUv = aPos*0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}
+`;
+
+// Fragment shader: mix A/B, apply FX, write to screen OR feedback buffer
+const FS = `
+precision highp float;
+varying vec2 vUv;
+
+uniform sampler2D uA;
+uniform sampler2D uB;
+uniform sampler2D uFB;
+uniform vec2 uRes;
+uniform float uTime;
+
+uniform int uHasA;
+uniform int uHasB;
+
+uniform int uBlendMode;
+uniform float uBOpacity;
+uniform float uInvB;
+uniform float uExposure;
+uniform float uContrast;
+uniform float uSat;
+
+uniform int uFeedbackOn;
+uniform float uFbAmt;
+uniform float uFbZoom;
+uniform float uFbRot;
+
+uniform int uKaleidoOn;
+uniform float uKSeg;
+uniform float uKAmt;
+uniform float uKSpin;
+
+uniform int uRGBOn;
+uniform float uRGBAmt;
+
+uniform int uGlitchOn;
+uniform float uGlitchAmt;
+
+uniform int uPixelOn;
+uniform float uPixSize;
+
+uniform int uScanOn;
+uniform float uScanAmt;
+
+uniform int uVigOn;
+uniform float uVigAmt;
+
+vec3 satAdjust(vec3 c, float s){
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  return mix(vec3(l), c, s);
+}
+
+vec2 rot(vec2 p, float a){
+  float c = cos(a), s = sin(a);
+  return mat2(c,-s,s,c) * p;
+}
+
+// blend modes (limited set)
+vec3 blend(vec3 a, vec3 b, int mode){
+  if (mode==0) return b;                          // normal
+  if (mode==1) return a*b;                        // multiply
+  if (mode==2) return 1.0 - (1.0-a)*(1.0-b);      // screen
+  if (mode==3) return abs(a-b);                   // difference
+  if (mode==4) return a + b;                      // add
+  if (mode==5) return mix(2.0*a*b, 1.0-2.0*(1.0-a)*(1.0-b), step(0.5,a)); // overlay-ish
+  if (mode==6) return a + b - 2.0*a*b;            // exclusion-ish
+  return b;
+}
+
+float hash(vec2 p){
+  p = fract(p*vec2(123.34,456.21));
+  p += dot(p, p+34.345);
+  return fract(p.x*p.y);
+}
+
+void main(){
+  vec2 uv = vUv;
+
+  // Pixelate
+  if (uPixelOn==1){
+    float px = max(1.0, uPixSize);
+    uv = floor(uv*px)/px + 0.5/px;
+  }
+
+  // Fetch inputs
+  vec3 A = (uHasA==1) ? texture2D(uA, uv).rgb : vec3(0.0);
+  vec3 B = (uHasB==1) ? texture2D(uB, uv).rgb : vec3(0.0);
+
+  // Invert B (0..1)
+  B = mix(B, 1.0 - B, clamp(uInvB,0.0,1.0));
+
+  // RGB shift (applied to B primarily)
+  if (uRGBOn==1 && uHasB==1){
+    float amt = uRGBAmt;
+    vec2 off = vec2(amt, 0.0);
+    float r = texture2D(uB, uv + off).r;
+    float g = texture2D(uB, uv).g;
+    float b = texture2D(uB, uv - off).b;
+    vec3 rgb = vec3(r,g,b);
+    rgb = mix(rgb, 1.0-rgb, clamp(uInvB,0.0,1.0));
+    B = rgb;
+  }
+
+  // Glitch (scanline jitter + block swap)
+  if (uGlitchOn==1){
+    float g = uGlitchAmt;
+    float t = uTime*1.2;
+    float line = floor(uv.y*240.0);
+    float rnd = hash(vec2(line, floor(t*6.0)));
+    float jitter = (rnd-0.5)*0.02*g;
+    uv.x += jitter;
+
+    float blockY = floor(uv.y*10.0);
+    float br = hash(vec2(blockY, floor(t*3.0)));
+    if (br < 0.18*g){
+      uv.x += (br-0.09)*0.12*g;
     }
 
-    function playAll(){
-      for (let i=0;i<5;i++){
-        if (i>=2 && !cfg[i].enabled) continue;
-        try { players[i] && players[i].mute(); } catch(e){}
-        try { players[i] && players[i].playVideo(); } catch(e){}
-      }
-      $("playOverlay").classList.remove("show");
+    // refetch after glitch
+    A = (uHasA==1) ? texture2D(uA, uv).rgb : vec3(0.0);
+    B = (uHasB==1) ? texture2D(uB, uv).rgb : vec3(0.0);
+    B = mix(B, 1.0 - B, clamp(uInvB,0.0,1.0));
+  }
+
+  // Kaleido (apply to combined base after blend for stronger look)
+  vec3 base = A;
+  int mode = uBlendMode;
+  vec3 mixedB = blend(A, B, mode);
+  base = mix(A, mixedB, clamp(uBOpacity,0.0,1.0));
+
+  // Feedback buffer (pre-color)
+  vec2 p = vUv - 0.5;
+  vec2 fbUv = vUv;
+  if (uFeedbackOn==1){
+    float a = uFbRot;
+    float z = 1.0 + uFbZoom;
+    vec2 rp = rot(p, a) / z;
+    fbUv = rp + 0.5;
+    vec3 fb = texture2D(uFB, fbUv).rgb;
+    base = mix(base, fb, clamp(uFbAmt,0.0,0.98));
+  }
+
+  // Kaleido transform
+  if (uKaleidoOn==1){
+    vec2 kp = vUv - 0.5;
+    float ang = atan(kp.y, kp.x);
+    float r = length(kp);
+    float seg = max(2.0, uKSeg);
+    float k = 6.28318530718 / seg;
+    ang = mod(ang + uTime*uKSpin, k);
+    ang = abs(ang - k*0.5);
+    vec2 ku = vec2(cos(ang), sin(ang)) * r;
+    vec2 uvk = ku + 0.5;
+    vec3 kcol = vec3(0.0);
+    if (uHasA==1) kcol += texture2D(uA, uvk).rgb;
+    if (uHasB==1) {
+      vec3 bb = texture2D(uB, uvk).rgb;
+      bb = mix(bb, 1.0-bb, clamp(uInvB,0.0,1.0));
+      kcol = blend(kcol, bb, mode);
     }
+    base = mix(base, kcol, clamp(uKAmt,0.0,1.0));
+  }
 
-    function pauseAll(){
-      for (let i=0;i<5;i++){
-        try { players[i] && players[i].pauseVideo(); } catch(e){}
-      }
+  // Exposure/contrast/sat
+  base *= uExposure;
+  base = (base - 0.5)*uContrast + 0.5;
+  base = satAdjust(base, uSat);
+
+  // Scanlines
+  if (uScanOn==1){
+    float s = sin(vUv.y*uRes.y*3.14159);
+    float scan = mix(1.0, 0.78 + 0.22*s, clamp(uScanAmt,0.0,1.0));
+    base *= scan;
+  }
+
+  // Vignette
+  if (uVigOn==1){
+    float d = distance(vUv, vec2(0.5));
+    float v = smoothstep(0.35, 0.95, d);
+    base *= mix(1.0, 1.0 - v, clamp(uVigAmt,0.0,1.0));
+  }
+
+  gl_FragColor = vec4(clamp(base, 0.0, 1.0), 1.0);
+}
+`;
+
+function resizeCanvas(){
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(2, Math.floor(rect.width*dpr));
+  const h = Math.max(2, Math.floor(rect.height*dpr));
+  if (canvas.width !== w || canvas.height !== h){
+    canvas.width = w; canvas.height = h;
+    if (gl){
+      gl.viewport(0,0,w,h);
+      initFeedbackTextures(w,h);
     }
-
-    function bestEffortSyncEchoTimes(){
-      try{
-        const t = players[1]?.getCurrentTime?.();
-        if (typeof t !== "number") return;
-        const offsets = [0.10, 0.18, 0.28];
-        for (let i=2;i<=4;i++){
-          if (!players[i]?.seekTo) continue;
-          const dt = offsets[i-2] || 0.1;
-          try { players[i].seekTo(Math.max(0, t - dt), true); } catch(e){}
-        }
-      } catch(e){}
-    }
-
-    // ------------------------
-    // CSS layer application
-    // ------------------------
-    function applyLayerCSS(i){
-      const el = $(`layer${i}`);
-      const c  = cfg[i];
-
-      // Base+overlay always visible; echo layers toggle
-      if (i <= 1) el.classList.remove("hidden");
-      else el.classList.toggle("hidden", !c.enabled);
-
-      el.style.opacity = c.opacity;
-      el.style.mixBlendMode = c.blend;
-
-      const sx = c.flipX ? -1 : 1;
-      const sy = c.flipY ? -1 : 1;
-
-      el.style.transform =
-        `translate(${c.x}%, ${c.y}%) scale(${c.scale * sx}, ${c.scale * sy}) rotate(${c.rot}deg)`;
-
-      el.style.filter =
-        `invert(${c.inv}) contrast(${c.ct}) brightness(${c.br}) saturate(${c.sat}) hue-rotate(${c.hue}deg) blur(${c.blur}px)`;
-
-      el.style.clipPath = (c.clip === "none") ? "none" : c.clip;
-    }
-
-    function applyAllCSS(){
-      for (let i=0;i<5;i++) applyLayerCSS(i);
-      for (let i=0;i<5;i++) $(`layer${i}`).classList.toggle("base", i===0);
-    }
-
-    function setMainFromUI(){
-      // Base (layer0)
-      cfg[0].enabled = true;
-      cfg[0].opacity = parseFloat($("op0").value);
-      cfg[0].blend   = "normal";
-      cfg[0].inv=0; cfg[0].ct=1; cfg[0].br=1; cfg[0].sat=1; cfg[0].hue=0; cfg[0].blur=0;
-      cfg[0].x=0; cfg[0].y=0; cfg[0].scale=1; cfg[0].rot=0;
-      cfg[0].flipX=false; cfg[0].flipY=false;
-      cfg[0].clip="none";
-
-      // Overlay (layer1)
-      cfg[1].enabled = true;
-      cfg[1].opacity = parseFloat($("op1").value);
-      cfg[1].blend   = $("blend1").value;
-      cfg[1].inv     = parseFloat($("inv1").value);
-      cfg[1].ct      = parseFloat($("ct1").value);
-      cfg[1].br      = 1.0;
-      cfg[1].sat     = parseFloat($("sat1").value);
-      cfg[1].hue     = 0;
-      cfg[1].blur    = 0;
-      cfg[1].x=0; cfg[1].y=0; cfg[1].scale=1; cfg[1].rot=0;
-      cfg[1].flipX=false; cfg[1].flipY=false;
-      cfg[1].clip="none";
-    }
-
-    // ------------------------
-    // FX overlay styling (per FX blend)
-    // ------------------------
-    function setFxSurf(elId, on, amt, blend){
-      const el = $(elId);
-      el.style.opacity = on ? String(amt) : "0";
-      el.style.mixBlendMode = blend || "difference";
-    }
-
-    // ------------------------
-    // Echo layers (trail/rgb/feedback/mirror)
-    // ------------------------
-    function needsEchoLayers(){
-      return $("fxTrailOn").checked || $("fxRGBOn").checked || $("fxFeedbackOn").checked || $("fxMirrorOn").checked;
-    }
-
-    function ensureEchoPlayersLoaded(){
-      const ovId = loadedIds[1];
-      if (!ovId) return;
-
-      for (let i=2;i<=4;i++){
-        if (!cfg[i].enabled) continue;
-        if (loadedIds[i] === ovId && players[i]) continue;
-        destroyPlayer(i);
-        mountPlayer(i, ovId);
-      }
-    }
-
-    function applyEchoFx(time){
-      // default: off
-      for (let i=2;i<=4;i++){
-        cfg[i].enabled = false;
-        cfg[i].clip = "none";
-      }
-
-      if (!needsEchoLayers()) return;
-
-      // enable echoes
-      for (let i=2;i<=4;i++){
-        cfg[i].enabled = true;
-        cfg[i].opacity = 0;
-        cfg[i].blend = "screen";
-        cfg[i].inv=0; cfg[i].ct=1.25; cfg[i].br=1.0; cfg[i].sat=1.5; cfg[i].hue=0; cfg[i].blur=0.8;
-        cfg[i].x=0; cfg[i].y=0; cfg[i].scale=1.0; cfg[i].rot=0;
-        cfg[i].flipX=false; cfg[i].flipY=false;
-      }
-
-      // TRAIL
-      if ($("fxTrailOn").checked){
-        const A = parseFloat($("fxTrailAmt").value);
-        const b = $("fxTrailBlend").value;
-        const blur = parseFloat($("fxTrailBlur").value);
-
-        cfg[2].opacity = 0.34 * A; cfg[3].opacity = 0.24 * A; cfg[4].opacity = 0.18 * A;
-        cfg[2].blend = b; cfg[3].blend = b; cfg[4].blend = "difference";
-        cfg[2].blur = blur * 0.6; cfg[3].blur = blur * 1.0; cfg[4].blur = blur * 1.4;
-
-        cfg[2].x = Math.sin(time*1.1) * 3.2 * A;  cfg[2].y = Math.cos(time*1.0) * 2.4 * A;
-        cfg[3].x = Math.sin(time*0.8+1.6) * -3.8 * A; cfg[3].y = Math.cos(time*0.9+0.4) * 3.0 * A;
-        cfg[4].x = Math.sin(time*0.6+2.4) * 2.4 * A;  cfg[4].y = Math.cos(time*0.7+1.2) * -3.4 * A;
-      }
-
-      // RGB SHIFT
-      if ($("fxRGBOn").checked){
-        const A = parseFloat($("fxRGBAmt").value);
-        const b = $("fxRGBBlend").value;
-        const sep = parseFloat($("fxRGBSep").value);
-
-        cfg[2].blend = b; cfg[3].blend = b; cfg[4].blend = b;
-        cfg[2].opacity = Math.max(cfg[2].opacity, 0.28 * A);
-        cfg[3].opacity = Math.max(cfg[3].opacity, 0.28 * A);
-        cfg[4].opacity = Math.max(cfg[4].opacity, 0.20 * A);
-
-        cfg[2].hue =  35; cfg[2].sat = 2.2; cfg[2].ct = 1.35;
-        cfg[3].hue = -35; cfg[3].sat = 2.2; cfg[3].ct = 1.35;
-        cfg[4].hue =  0;  cfg[4].sat = 2.6; cfg[4].ct = 1.15;
-
-        const wob = Math.sin(time*1.7) * 0.8 * A;
-        cfg[2].x += ( sep*A + wob);
-        cfg[3].x += (-sep*A - wob);
-        cfg[4].y += ( sep*0.55*A + Math.cos(time*1.3)*0.5*A);
-      }
-
-      // FEEDBACK TUNNEL ILLUSION
-      if ($("fxFeedbackOn").checked){
-        const A = parseFloat($("fxFeedbackAmt").value);
-        const b = $("fxFeedbackBlend").value;
-        const zoom = parseFloat($("fxFeedbackZoom").value);
-        const rotSpd = parseFloat($("fxFeedbackRot").value);
-        const drift = parseFloat($("fxFeedbackDrift").value);
-
-        cfg[2].blend = b; cfg[3].blend = b; cfg[4].blend = "difference";
-        cfg[2].opacity = Math.max(cfg[2].opacity, 0.22 * A);
-        cfg[3].opacity = Math.max(cfg[3].opacity, 0.18 * A);
-        cfg[4].opacity = Math.max(cfg[4].opacity, 0.14 * A);
-
-        cfg[2].scale = 1.02 + zoom*0.8*A;
-        cfg[3].scale = 1.06 + zoom*1.2*A;
-        cfg[4].scale = 1.10 + zoom*1.6*A;
-
-        cfg[2].rot += time * (rotSpd*0.7) * A;
-        cfg[3].rot += time * (rotSpd*1.0) * A;
-        cfg[4].rot += time * (rotSpd*1.3) * A;
-
-        cfg[2].x += Math.sin(time*1.05)*drift*A; cfg[2].y += Math.cos(time*1.10)*drift*0.75*A;
-        cfg[3].x += Math.sin(time*0.90+2)*-drift*1.05*A; cfg[3].y += Math.cos(time*1.20+1)*drift*0.85*A;
-        cfg[4].x += Math.sin(time*0.70+3)*drift*0.80*A; cfg[4].y += Math.cos(time*0.80+2)*-drift*0.95*A;
-
-        cfg[2].blur = Math.max(cfg[2].blur, 1.0*A);
-        cfg[3].blur = Math.max(cfg[3].blur, 2.0*A);
-        cfg[4].blur = Math.max(cfg[4].blur, 3.0*A);
-      }
-
-      // MIRROR / QUAD
-      if ($("fxMirrorOn").checked){
-        const A = parseFloat($("fxMirrorAmt").value);
-        const b = $("fxMirrorBlend").value;
-        const mode = $("fxMirrorMode").value;
-
-        cfg[2].blend = b; cfg[3].blend = b; cfg[4].blend = "difference";
-        cfg[2].opacity = Math.max(cfg[2].opacity, 0.38 * A);
-        cfg[3].opacity = Math.max(cfg[3].opacity, 0.30 * A);
-        cfg[4].opacity = Math.max(cfg[4].opacity, 0.22 * A);
-
-        if (mode === "mx"){
-          cfg[2].flipX = true;
-        } else if (mode === "my"){
-          cfg[2].flipY = true;
-        } else if (mode === "mxy"){
-          cfg[2].flipX = true; cfg[2].flipY = true;
-        } else {
-          // QUAD: use clip-path quadrants + flips + slow micro-rot for kaleido vibe
-          cfg[2].clip = "inset(0 50% 50% 0)";    // top-left
-          cfg[3].clip = "inset(0 0 50% 50%)";    // top-right
-          cfg[4].clip = "inset(50% 50% 0 0)";    // bottom-left
-
-          cfg[2].flipX = true;
-          cfg[3].flipY = true;
-          cfg[4].flipX = true; cfg[4].flipY = true;
-
-          cfg[2].rot += Math.sin(time*0.7)*6;
-          cfg[3].rot += Math.cos(time*0.9)*6;
-          cfg[4].rot += Math.sin(time*1.1)*6;
-        }
-      }
-
-      ensureEchoPlayersLoaded();
-    }
-
-    // ------------------------
-    // Procedural overlays (canvas/div/ascii)
-    // ------------------------
-    function resizeAllCanvases(){
-      const r = $("stage").getBoundingClientRect();
-      const w = Math.max(2, Math.floor(r.width));
-      const h = Math.max(2, Math.floor(r.height));
-      for (const id of ["fxNoise","fxBars","fxGrad","fxDots"]){
-        const c = $(id);
-        c.width = w;
-        c.height = h;
-      }
-    }
-
-    function clearCanvas(id){
-      const c = canv[id], g = ctx[id];
-      if (!c || !g) return;
-      g.clearRect(0,0,c.width,c.height);
-    }
-
-    function stepNoise(time, freq){
-      const k = Math.max(0.001, 1 / Math.max(0.01, freq));
-      const bucket = Math.floor(time / k);
-      const x = Math.sin(bucket * 999.123) * 10000;
-      return (x - Math.floor(x)) * 2 - 1;
-    }
-
-    function drawNoise(time){
-      const on = $("fxNoiseOn").checked;
-      const amt = parseFloat($("fxNoiseAmt").value);
-      setFxSurf("fxNoise", on, on ? 1 : 0, $("fxNoiseBlend").value);
-      if (!on || amt <= 0) { clearCanvas("fxNoise"); return; }
-
-      const c = canv.fxNoise, g = ctx.fxNoise;
-      const w = c.width, h = c.height;
-
-      const scale = parseFloat($("fxNoiseScale").value);
-      const step = Math.max(1, Math.floor(scale)); // larger = chunkier
-      const alpha = Math.floor(255 * Math.min(1, 0.90 * amt));
-
-      // draw chunky grayscale noise fast (no ImageData full-res loop)
-      g.clearRect(0,0,w,h);
-      for (let y=0; y<h; y+=step){
-        for (let x=0; x<w; x+=step){
-          const v = (Math.random()*255)|0;
-          g.fillStyle = `rgba(${v},${v},${v},${alpha/255})`;
-          g.fillRect(x,y,step,step);
-        }
-      }
-    }
-
-    function drawBars(time){
-      const on = $("fxBarsOn").checked;
-      const amt = parseFloat($("fxBarsAmt").value);
-      setFxSurf("fxBars", on, on ? 1 : 0, $("fxBarsBlend").value);
-      if (!on || amt <= 0) { clearCanvas("fxBars"); return; }
-
-      const c = canv.fxBars, g = ctx.fxBars;
-      const w = c.width, h = c.height;
-      const den = parseFloat($("fxBarsDen").value);
-
-      g.clearRect(0,0,w,h);
-
-      const nBars = Math.floor(6 + den*30);
-      for (let i=0;i<nBars;i++){
-        const y = Math.random()*h;
-        const bh = (2 + Math.random()*24) * (0.4 + amt);
-        const xoff = (Math.sin(time*6 + i*0.7)*0.5+0.5) * w * 0.18 * amt;
-
-        // some bars are brighter / some are dimmer
-        const a = 0.10 + Math.random()*0.35 * amt;
-        g.fillStyle = `rgba(255,255,255,${a})`;
-        g.fillRect(xoff, y, w, bh);
-      }
-
-      // occasional hard tear stripe
-      if (Math.abs(stepNoise(time, 2 + 6*amt)) > (0.80 - 0.25*amt)){
-        const y = (Math.random()*h)|0;
-        const bh = 6 + Math.random()*28;
-        g.fillStyle = `rgba(255,255,255,${0.55*amt})`;
-        g.fillRect(0, y, w, bh);
-      }
-    }
-
-    function drawGrad(time){
-      const on = $("fxGradOn").checked;
-      const amt = parseFloat($("fxGradAmt").value);
-      setFxSurf("fxGrad", on, on ? amt : 0, $("fxGradBlend").value);
-      if (!on || amt <= 0) { clearCanvas("fxGrad"); return; }
-
-      const c = canv.fxGrad, g = ctx.fxGrad;
-      const w = c.width, h = c.height;
-      const spd = parseFloat($("fxGradSpd").value);
-
-      g.clearRect(0,0,w,h);
-
-      // moving soft gradient “wash”
-      const t = time * spd;
-      const x1 = (Math.sin(t*0.7)*0.5+0.5)*w;
-      const y1 = (Math.cos(t*0.9)*0.5+0.5)*h;
-      const x2 = (Math.sin(t*1.1+2)*0.5+0.5)*w;
-      const y2 = (Math.cos(t*0.8+1)*0.5+0.5)*h;
-
-      const grd = g.createLinearGradient(x1,y1,x2,y2);
-      grd.addColorStop(0, `rgba(120,162,255,${0.35})`);
-      grd.addColorStop(0.5, `rgba(255,80,200,${0.22})`);
-      grd.addColorStop(1, `rgba(60,255,180,${0.28})`);
-
-      g.fillStyle = grd;
-      g.fillRect(0,0,w,h);
-    }
-
-    function drawDots(time){
-      const on = $("fxDotsOn").checked;
-      const amt = parseFloat($("fxDotsAmt").value);
-      setFxSurf("fxDots", on, on ? amt : 0, $("fxDotsBlend").value);
-      if (!on || amt <= 0) { clearCanvas("fxDots"); return; }
-
-      const c = canv.fxDots, g = ctx.fxDots;
-      const w = c.width, h = c.height;
-      const sz = parseFloat($("fxDotsSize").value);
-      const step = Math.max(4, sz*2);
-
-      g.clearRect(0,0,w,h);
-
-      // dot grid with slight animated offset
-      const ox = (Math.sin(time*0.7)*0.5+0.5) * step;
-      const oy = (Math.cos(time*0.6)*0.5+0.5) * step;
-
-      g.fillStyle = `rgba(255,255,255,${0.18 + 0.38*amt})`;
-      for (let y=-step; y<h+step; y+=step){
-        for (let x=-step; x<w+step; x+=step){
-          const r = sz * (0.35 + 0.65*(Math.sin((x+y)*0.01 + time*1.2)*0.5+0.5));
-          g.beginPath();
-          g.arc(x+ox, y+oy, r, 0, Math.PI*2);
-          g.fill();
-        }
-      }
-    }
-
-    function applyDivOverlays(time){
-      // Scanlines
-      const scanOn = $("fxScanOn").checked;
-      const scanAmt = parseFloat($("fxScanAmt").value);
-      setFxSurf("scanlines", scanOn, scanOn ? 0.85*scanAmt : 0, $("fxScanBlend").value);
-
-      // Vignette
-      const vigOn = $("fxVigOn").checked;
-      const vigAmt = parseFloat($("fxVigAmt").value);
-      setFxSurf("vignette", vigOn, vigOn ? 0.95*vigAmt : 0, $("fxVigBlend").value);
-
-      // Rollbar
-      const rollOn = $("fxRollOn").checked;
-      const rollAmt = parseFloat($("fxRollAmt").value);
-      setFxSurf("rollbar", rollOn, rollOn ? 0.90*rollAmt : 0, $("fxRollBlend").value);
-
-      if (rollOn){
-        const spd = parseFloat($("fxRollSpd").value);
-        const y = ((time * (0.15 + 0.85*spd)) % 2.2) - 1.1;
-        $("rollbar").style.transform = `translateY(${y*140}%)`;
-      } else {
-        $("rollbar").style.transform = "translateY(-140%)";
-      }
-    }
-
-    function renderAscii(time){
-      const on = $("fxAsciiOn").checked;
-      const amt = parseFloat($("fxAsciiAmt").value);
-      setFxSurf("ascii", on, on ? 0.90*amt : 0, $("fxAsciiBlend").value);
-      if (!on || amt <= 0) { $("ascii").textContent = ""; return; }
-
-      // “fake ascii texture” (fast, stylized, not a real video conversion)
-      const den = parseFloat($("fxAsciiDen").value);
-      const cols = Math.floor(58 * den);
-      const rows = Math.floor(34 * den);
-      let out = "";
-      for (let r=0;r<rows;r++){
-        for (let c=0;c<cols;c++){
-          const v = stepNoise(time + r*0.03 + c*0.01, 18);
-          const idx = Math.floor(((v+1)/2) * (ASCII_CHARS.length-1));
-          out += ASCII_CHARS[Math.max(0, Math.min(ASCII_CHARS.length-1, idx))];
-        }
-        out += "\n";
-      }
-      $("ascii").textContent = out;
-    }
-
-    // ------------------------
-    // Presets + “active” highlighting
-    // ------------------------
-    const presetButtons = ["pNone","pTrip","pNeon","pGlitch","pKaleido","pFeedback"];
-
-    function setActivePreset(btnId){
-      for (const id of presetButtons) $(id).classList.remove("active");
-      $(btnId).classList.add("active");
-    }
-
-    function allFxOff(){
-      const checks = [
-        "fxTrailOn","fxRGBOn","fxFeedbackOn","fxMirrorOn",
-        "fxNoiseOn","fxBarsOn","fxGradOn","fxDotsOn",
-        "fxScanOn","fxVigOn","fxRollOn","fxAsciiOn"
-      ];
-      for (const id of checks) $(id).checked = false;
-
-      // disable echo layers and destroy them
-      for (let i=2;i<=4;i++){
-        cfg[i].enabled = false;
-        applyLayerCSS(i);
-        destroyPlayer(i);
-      }
-
-      setActivePreset("pNone");
-    }
-
-    function applyPreset(name){
-      allFxOff();
-
-      if (name === "none"){ return; }
-
-      if (name === "trip"){
-        $("fxTrailOn").checked = true; $("fxTrailAmt").value = "0.85"; $("fxTrailBlend").value = "screen"; $("fxTrailBlur").value = "5.2";
-        $("fxRGBOn").checked = true;  $("fxRGBAmt").value = "0.80";  $("fxRGBBlend").value  = "screen"; $("fxRGBSep").value  = "4.2";
-        $("fxNoiseOn").checked = true; $("fxNoiseAmt").value = "0.45"; $("fxNoiseBlend").value="difference"; $("fxNoiseScale").value="2.2";
-        $("fxScanOn").checked = true;  $("fxScanAmt").value  = "0.55"; $("fxScanBlend").value="overlay";
-        $("fxVigOn").checked = true;   $("fxVigAmt").value   = "0.55"; $("fxVigBlend").value="multiply";
-        setActivePreset("pTrip");
-      }
-
-      if (name === "neon"){
-        $("fxRGBOn").checked = true;  $("fxRGBAmt").value="0.95"; $("fxRGBBlend").value="screen"; $("fxRGBSep").value="5.0";
-        $("fxGradOn").checked = true; $("fxGradAmt").value="0.55"; $("fxGradBlend").value="overlay"; $("fxGradSpd").value="1.4";
-        $("fxScanOn").checked = true; $("fxScanAmt").value="0.70"; $("fxScanBlend").value="overlay";
-        $("fxVigOn").checked = true;  $("fxVigAmt").value="0.65"; $("fxVigBlend").value="multiply";
-        $("fxDotsOn").checked = true; $("fxDotsAmt").value="0.35"; $("fxDotsBlend").value="soft-light"; $("fxDotsSize").value="7";
-        setActivePreset("pNeon");
-      }
-
-      if (name === "glitch"){
-        $("fxBarsOn").checked = true; $("fxBarsAmt").value="0.85"; $("fxBarsBlend").value="difference"; $("fxBarsDen").value="0.75";
-        $("fxNoiseOn").checked = true; $("fxNoiseAmt").value="0.60"; $("fxNoiseBlend").value="overlay"; $("fxNoiseScale").value="2.8";
-        $("fxRollOn").checked = true;  $("fxRollAmt").value="0.70"; $("fxRollBlend").value="overlay"; $("fxRollSpd").value="1.6";
-        $("fxTrailOn").checked = true; $("fxTrailAmt").value="0.55"; $("fxTrailBlend").value="difference"; $("fxTrailBlur").value="6.0";
-        setActivePreset("pGlitch");
-      }
-
-      if (name === "kaleido"){
-        $("fxMirrorOn").checked = true; $("fxMirrorAmt").value="0.95"; $("fxMirrorBlend").value="screen"; $("fxMirrorMode").value="quad";
-        $("fxFeedbackOn").checked = true; $("fxFeedbackAmt").value="0.55"; $("fxFeedbackBlend").value="screen"; $("fxFeedbackZoom").value="0.10"; $("fxFeedbackRot").value="10"; $("fxFeedbackDrift").value="2.2";
-        $("fxGradOn").checked = true; $("fxGradAmt").value="0.35"; $("fxGradBlend").value="overlay"; $("fxGradSpd").value="1.0";
-        setActivePreset("pKaleido");
-      }
-
-      if (name === "feedback"){
-        $("fxFeedbackOn").checked = true; $("fxFeedbackAmt").value="0.95"; $("fxFeedbackBlend").value="screen"; $("fxFeedbackZoom").value="0.14"; $("fxFeedbackRot").value="16"; $("fxFeedbackDrift").value="3.2";
-        $("fxTrailOn").checked = true;    $("fxTrailAmt").value="0.60"; $("fxTrailBlend").value="screen"; $("fxTrailBlur").value="4.8";
-        $("fxScanOn").checked = true;     $("fxScanAmt").value="0.65"; $("fxScanBlend").value="overlay";
-        $("fxNoiseOn").checked = true;    $("fxNoiseAmt").value="0.40"; $("fxNoiseBlend").value="difference"; $("fxNoiseScale").value="2.0";
-        setActivePreset("pFeedback");
-      }
-    }
-
-    // ------------------------
-    // Load URLs (base+overlay)
-    // ------------------------
-    async function applyUrls(){
-      const id0 = extractVideoId($("url0").value);
-      const id1 = extractVideoId($("url1").value);
-      if (!id0 || !id1){
-        alert("Please enter valid YouTube URLs (or 11-char IDs).");
-        return;
-      }
-
-      // destroy all players for a clean rebuild
-      for (let i=0;i<5;i++) destroyPlayer(i);
-
-      // mount main players
-      mountPlayer(0, id0);
-      mountPlayer(1, id1);
-
-      // echoes off until needed
-      for (let i=2;i<=4;i++){
-        cfg[i].enabled = false;
-        applyLayerCSS(i);
-      }
-
-      // apply CSS for base+overlay
-      setMainFromUI();
-      applyAllCSS();
-
-      // attempt autoplay
-      setTimeout(async () => {
-        const attempted = await tryAutoplayMuted();
-        $("playOverlay").classList.toggle("show", !attempted);
-      }, 650);
-    }
-
-    // ------------------------
-    // Fullscreen
-    // ------------------------
-    function isRealFullscreenSupported(){
-      const stage = $("stage");
-      return !!(stage.requestFullscreen && document.fullscreenEnabled);
-    }
-
-    async function toggleFullscreen(){
-      const stage = $("stage");
-
-      if (document.body.classList.contains("pseudo-fs")){
-        document.body.classList.remove("pseudo-fs");
-        return;
-      }
-
-      if (isRealFullscreenSupported()){
-        try{
-          if (document.fullscreenElement) await document.exitFullscreen();
-          else await stage.requestFullscreen();
-          return;
-        } catch(e){}
-      }
-      document.body.classList.add("pseudo-fs");
-    }
-
-    // ------------------------
-    // Animation loop
-    // ------------------------
-    function raf(t){
-      const time = t / 1000;
-
-      // Main layer params
-      setMainFromUI();
-
-      // Echo fx
-      applyEchoFx(time);
-
-      // Keep echoes aligned sometimes
-      if (needsEchoLayers() && Math.random() < 0.02) bestEffortSyncEchoTimes();
-
-      // Procedural overlays
-      drawNoise(time);
-      drawBars(time);
-      drawGrad(time);
-      drawDots(time);
-
-      // Div overlays
-      setFxSurf("scanlines", $("fxScanOn").checked, parseFloat($("fxScanAmt").value), $("fxScanBlend").value);
-      setFxSurf("vignette",  $("fxVigOn").checked,  parseFloat($("fxVigAmt").value),  $("fxVigBlend").value);
-      setFxSurf("rollbar",   $("fxRollOn").checked, parseFloat($("fxRollAmt").value), $("fxRollBlend").value);
-
-      // rollbar movement
-      applyDivOverlays(time);
-
-      // ASCII
-      renderAscii(time);
-
-      // Apply all layer CSS last
-      applyAllCSS();
-
-      requestAnimationFrame(raf);
-    }
-
-    // ------------------------
-    // YT API loader (fixes “must press reload”)
-    // ------------------------
-    function loadYouTubeAPI(){
-      return new Promise((resolve) => {
-        if (window.YT && window.YT.Player) return resolve();
-        const tag = document.createElement("script");
-        tag.src = "https://www.youtube.com/iframe_api";
-        document.head.appendChild(tag);
-        window.onYouTubeIframeAPIReady = () => resolve();
-      });
-    }
-
-    // ------------------------
-    // Wire UI
-    // ------------------------
-    function wireUI(){
-      // panel
-      const controlsPanel = $("controlsPanel");
-      $("controlsBtn").addEventListener("click", () => {
-        controlsPanel.classList.toggle("open");
-        $("controlsBtn").textContent = controlsPanel.classList.contains("open") ? "Collapse controls" : "Expand controls";
-      });
-      $("hidePanelBtn").addEventListener("click", () => {
-        controlsPanel.classList.remove("open");
-        $("controlsBtn").textContent = "Expand controls";
-      });
-
-      // transport
-      $("applyBtn").addEventListener("click", applyUrls);
-      $("playBtn").addEventListener("click", playAll);
-      $("pauseBtn").addEventListener("click", pauseAll);
-      $("tapPlayBtn").addEventListener("click", playAll);
-
-      // fullscreen
-      $("fsBtn").addEventListener("click", toggleFullscreen);
-      $("hudPlay").addEventListener("click", playAll);
-      $("hudExit").addEventListener("click", toggleFullscreen);
-
-      // mute buttons
-      $("muteBaseBtn").addEventListener("click", () => {
-        mutedBase = !mutedBase;
-        try { mutedBase ? players[0].mute() : players[0].unMute(); } catch(e){}
-        $("muteBaseBtn").textContent = mutedBase ? "Unmute base" : "Mute base";
-      });
-      $("muteOvBtn").addEventListener("click", () => {
-        mutedOv = !mutedOv;
-        try { mutedOv ? players[1].mute() : players[1].unMute(); } catch(e){}
-        $("muteOvBtn").textContent = mutedOv ? "Unmute overlay" : "Mute overlay";
-      });
-
-      // all FX off
-      $("fxAllOff").addEventListener("click", allFxOff);
-
-      // presets
-      $("pNone").addEventListener("click", () => { applyPreset("none"); setActivePreset("pNone"); });
-      $("pTrip").addEventListener("click", () => applyPreset("trip"));
-      $("pNeon").addEventListener("click", () => applyPreset("neon"));
-      $("pGlitch").addEventListener("click", () => applyPreset("glitch"));
-      $("pKaleido").addEventListener("click", () => applyPreset("kaleido"));
-      $("pFeedback").addEventListener("click", () => applyPreset("feedback"));
-
-      // if user manually toggles FX, clear preset highlight to “None” (optional behavior)
-      const fxInputs = document.querySelectorAll("input[type='checkbox']");
-      fxInputs.forEach(inp => {
-        inp.addEventListener("change", () => {
-          // if any preset other than None is active, clicking toggles should not forcibly clear,
-          // but you wanted clarity—so we leave highlight as-is unless you press “None” or “All FX Off”.
-          // (If you want auto-clear, uncomment below)
-          // setActivePreset("pNone");
-        });
-      });
-
-      // blend selects already set; nothing else needed
-    }
-
-    // ------------------------
-    // Boot
-    // ------------------------
-    async function boot(){
-      // defaults
-      $("url0").value = DEFAULT0;
-      $("url1").value = DEFAULT1;
-
-      // overlay video blend list
-      fillBlendSelect("blend1","difference");
-
-      // FX blend selects (default difference, as requested)
-      const fxBlendIds = [
-        "fxTrailBlend","fxRGBBlend","fxFeedbackBlend","fxMirrorBlend",
-        "fxNoiseBlend","fxBarsBlend","fxGradBlend","fxDotsBlend",
-        "fxScanBlend","fxVigBlend","fxRollBlend","fxAsciiBlend"
-      ];
-      fxBlendIds.forEach(id => fillBlendSelect(id,"difference"));
-
-      // special: vignette defaults to multiply feels better; but you asked difference overlays —
-      // keep difference by default; you can change it anytime.
-
-      // init canvases
-      ["fxNoise","fxBars","fxGrad","fxDots"].forEach(id => {
-        canv[id] = $(id);
-        ctx[id]  = canv[id].getContext("2d", { alpha:true });
-      });
-
-      // canvas sizes
-      resizeAllCanvases();
-      window.addEventListener("resize", resizeAllCanvases);
-
-      // all FX OFF by default (and none preset active)
-      allFxOff();
-      setActivePreset("pNone");
-
-      wireUI();
-
-      // Load YT API after DOM is ready (fixes “must hit reload”)
-      await loadYouTubeAPI();
-
-      // Apply URLs immediately
-      await applyUrls();
-
-      // Start loop
-      requestAnimationFrame(raf);
-    }
-
-    document.addEventListener("DOMContentLoaded", boot);
-  </script>
+  }
+}
+
+function makeTex(){
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return t;
+}
+
+function initFeedbackTextures(w,h){
+  // (re)create feedback ping-pong textures & fbos
+  function makeFBTex(){
+    const t = makeTex();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    return t;
+  }
+  function makeFBO(tex){
+    const f = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return f;
+  }
+
+  // cleanup old
+  [fbTex0, fbTex1].forEach(t=>t && gl.deleteTexture(t));
+  [fbFbo0, fbFbo1].forEach(f=>f && gl.deleteFramebuffer(f));
+
+  fbTex0 = makeFBTex();
+  fbTex1 = makeFBTex();
+  fbFbo0 = makeFBO(fbTex0);
+  fbFbo1 = makeFBO(fbTex1);
+  ping = 0;
+}
+
+function initGL(){
+  gl = canvas.getContext("webgl", { antialias:false, alpha:false, preserveDrawingBuffer:false });
+  if (!gl){
+    $("status").textContent = "Status: WebGL not supported";
+    return;
+  }
+  prog = createProgram(gl, VS, FS);
+  if (!prog){
+    $("status").textContent = "Status: shader compile failed";
+    return;
+  }
+  gl.useProgram(prog);
+
+  quadVBO = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1,-1,  1,-1, -1, 1,
+    -1, 1,  1,-1,  1, 1
+  ]), gl.STATIC_DRAW);
+
+  const aPos = gl.getAttribLocation(prog, "aPos");
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  texA = makeTex();
+  texB = makeTex();
+
+  resizeCanvas();
+}
+
+function blendModeToInt(v){
+  // matches shader: normal=0 multiply=1 screen=2 difference=3 add=4 overlay-ish=5 exclusion-ish=6
+  if (v==="normal") return 0;
+  if (v==="multiply") return 1;
+  if (v==="screen") return 2;
+  if (v==="difference") return 3;
+  if (v==="add") return 4;
+  if (v==="overlay") return 5;
+  if (v==="exclusion") return 6;
+  return 3;
+}
+
+function updateVideoTexture(tex, video){
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  try{
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+  }catch(e){
+    // Ignore frames not ready
+  }
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+function renderFX(timeMs){
+  if (!gl || currentMode!=="fx") return;
+  resizeCanvas();
+
+  const hasA = !!capStreamA && capVideoA.readyState >= 2;
+  const hasB = !!capStreamB && capVideoB.readyState >= 2;
+
+  if (hasA) updateVideoTexture(texA, capVideoA);
+  if (hasB) updateVideoTexture(texB, capVideoB);
+
+  gl.useProgram(prog);
+
+  const w = canvas.width, h = canvas.height;
+
+  // bind input textures
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texA);
+  gl.uniform1i(gl.getUniformLocation(prog,"uA"), 0);
+
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, texB);
+  gl.uniform1i(gl.getUniformLocation(prog,"uB"), 1);
+
+  // feedback texture is previous ping
+  const prevTex = (ping===0) ? fbTex0 : fbTex1;
+  const nextFbo = (ping===0) ? fbFbo1 : fbFbo0;
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D, prevTex);
+  gl.uniform1i(gl.getUniformLocation(prog,"uFB"), 2);
+
+  gl.uniform2f(gl.getUniformLocation(prog,"uRes"), w, h);
+  gl.uniform1f(gl.getUniformLocation(prog,"uTime"), timeMs/1000);
+
+  gl.uniform1i(gl.getUniformLocation(prog,"uHasA"), hasA ? 1 : 0);
+  gl.uniform1i(gl.getUniformLocation(prog,"uHasB"), hasB ? 1 : 0);
+
+  // mixer uniforms
+  gl.uniform1i(gl.getUniformLocation(prog,"uBlendMode"), blendModeToInt($("fxBlend").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uBOpacity"), parseFloat($("fxBOpacity").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uInvB"), parseFloat($("fxInvB").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uExposure"), parseFloat($("fxExposure").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uContrast"), parseFloat($("fxContrast").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uSat"), parseFloat($("fxSat").value));
+
+  // fx toggles
+  gl.uniform1i(gl.getUniformLocation(prog,"uFeedbackOn"), $("tFeedback").checked ? 1 : 0);
+  gl.uniform1f(gl.getUniformLocation(prog,"uFbAmt"), parseFloat($("feedbackAmt").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uFbZoom"), parseFloat($("feedbackZoom").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uFbRot"), parseFloat($("feedbackRot").value));
+
+  gl.uniform1i(gl.getUniformLocation(prog,"uKaleidoOn"), $("tKaleido").checked ? 1 : 0);
+  gl.uniform1f(gl.getUniformLocation(prog,"uKSeg"), parseFloat($("kSeg").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uKAmt"), parseFloat($("kAmt").value));
+  gl.uniform1f(gl.getUniformLocation(prog,"uKSpin"), parseFloat($("kSpin").value));
+
+  gl.uniform1i(gl.getUniformLocation(prog,"uRGBOn"), $("tRGB").checked ? 1 : 0);
+  gl.uniform1f(gl.getUniformLocation(prog,"uRGBAmt"), parseFloat($("rgbAmt").value));
+
+  gl.uniform1i(gl.getUniformLocation(prog,"uGlitchOn"), $("tGlitch").checked ? 1 : 0);
+  gl.uniform1f(gl.getUniformLocation(prog,"uGlitchAmt"), parseFloat($("glitchAmt").value));
+
+  gl.uniform1i(gl.getUniformLocation(prog,"uPixelOn"), $("tPixel").checked ? 1 : 0);
+  gl.uniform1f(gl.getUniformLocation(prog,"uPixSize"), parseFloat($("pixSize").value));
+
+  gl.uniform1i(gl.getUniformLocation(prog,"uScanOn"), $("tScan").checked ? 1 : 0);
+  gl.uniform1f(gl.getUniformLocation(prog,"uScanAmt"), parseFloat($("scanAmt").value));
+
+  gl.uniform1i(gl.getUniformLocation(prog,"uVigOn"), $("tVig").checked ? 1 : 0);
+  gl.uniform1f(gl.getUniformLocation(prog,"uVigAmt"), parseFloat($("vigAmt").value));
+
+  // 1) render to feedback nextFbo
+  gl.bindFramebuffer(gl.FRAMEBUFFER, nextFbo);
+  gl.viewport(0,0,w,h);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  // 2) render to screen using the same shader but with updated feedback (swap)
+  ping = 1 - ping;
+  const nowTex = (ping===0) ? fbTex0 : fbTex1;
+
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D, nowTex);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0,0,w,h);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  requestAnimationFrame(renderFX);
+}
+
+/* ============================================================
+   BOOT
+============================================================ */
+function boot(){
+  initGL();
+  rebuildLinkLayers();
+  setMode("links");
+  requestAnimationFrame(renderFX);
+
+  // try to help autoplay UX
+  showGate(false);
+  setTimeout(()=>showGate(true), 600);
+  setTimeout(()=>showGate(false), 1500);
+}
+window.addEventListener("resize", ()=>resizeCanvas());
+document.addEventListener("DOMContentLoaded", boot);
+</script>
 </body>
 </html>
