@@ -3,19 +3,12 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>VJ Mixer (YouTube Links) + FX Capture Mode</title>
+  <title>VJ Mixer (Links) + FX Capture (Tab/Window) w/ Crop</title>
   <style>
     :root{
-      --bg:#07080c;
-      --panel:#0f1118;
-      --panel2:#0b0d13;
-      --text:#e9edf6;
-      --muted:#9aa3b5;
-      --border:rgba(255,255,255,.12);
-      --accent:#7aa2ff;
-      --accent2:#ff7bd3;
-      --radius:16px;
-      --maxw:1200px;
+      --bg:#07080c; --panel:#0f1118; --panel2:#0b0d13;
+      --text:#e9edf6; --muted:#9aa3b5; --border:rgba(255,255,255,.12);
+      --accent:#7aa2ff; --radius:16px; --maxw:1200px;
     }
     html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
     .wrap{max-width:var(--maxw);margin:16px auto;padding:0 14px;display:grid;gap:12px;}
@@ -80,16 +73,13 @@
 
     /* Link mixer layers */
     .layersRoot{position:absolute;inset:0; z-index:10;}
-    .layer{position:absolute;inset:0;pointer-events:none;will-change:opacity,filter,transform;mix-blend-mode:normal;opacity:1;}
+    .layer{position:absolute;inset:0;pointer-events:none;will-change:opacity,filter;mix-blend-mode:normal;opacity:1;}
     .layer iframe{width:100%;height:100%;border:0;display:block;}
 
     /* FX output canvas */
-    canvas#fxOut{
-      position:absolute; inset:0; width:100%; height:100%;
-      display:none; z-index:30;
-    }
+    canvas#fxOut{position:absolute; inset:0; width:100%; height:100%; display:none; z-index:30;}
 
-    /* Tap-to-start overlay (for autoplay restrictions) */
+    /* Tap-to-start overlay */
     .gate{
       position:absolute; inset:0; display:none;
       align-items:center; justify-content:center;
@@ -108,10 +98,8 @@
     }
     .controlsHead{
       display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-      padding:12px 12px;
-      border-bottom:1px solid var(--border);
+      padding:12px; border-bottom:1px solid var(--border);
     }
-    .controlsHead .left{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
     .badge{
       font-size:12px;color:var(--muted);
       border:1px solid var(--border);
@@ -121,7 +109,6 @@
     .controls.open .controlsBody{display:grid;}
     .grid{display:grid;grid-template-columns: 1fr 1fr; gap:12px;}
     @media (max-width: 980px){.grid{grid-template-columns: 1fr;}}
-
     .card{
       border:1px solid var(--border);
       border-radius:var(--radius);
@@ -132,16 +119,14 @@
       padding:10px 12px; border-bottom:1px solid var(--border);
       display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
     }
-    .cardTitle{font-weight:700;font-size:13px;color:var(--text); letter-spacing:.2px}
+    .cardTitle{font-weight:700;font-size:13px}
     .cardBody{padding:12px;display:grid;gap:10px}
     label{display:grid;gap:6px;font-size:12px;color:var(--muted);}
-    input[type="text"], select, input[type="number"]{
-      width:100%; padding:10px 10px;
-      border-radius:12px;
-      border:1px solid var(--border);
+    input[type="text"], select{
+      width:100%; padding:10px;
+      border-radius:12px; border:1px solid var(--border);
       background:rgba(0,0,0,.30);
-      color:var(--text);
-      font-size:14px;
+      color:var(--text); font-size:14px;
       outline:none;
     }
     input[type="range"]{width:100%;}
@@ -149,27 +134,14 @@
     @media (max-width: 740px){.row{grid-template-columns:1fr;}}
     .toggle{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;user-select:none}
     .toggle input{transform:scale(1.05)}
+    .miniBtns{display:flex;gap:8px;flex-wrap:wrap}
+    .miniBtns button{padding:8px 10px;font-size:12px}
     .small{font-size:12px;color:var(--muted);line-height:1.25}
-
-    .pillrow{display:flex;gap:8px;flex-wrap:wrap}
-    .pill{
-      font-size:12px;color:var(--muted);
-      border:1px solid var(--border);
-      padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.02);
-    }
-
-    /* Mode sections */
-    .modeBlock{display:none;}
-    .modeBlock.active{display:block;}
-
-    /* Layer list */
     .layerList{display:grid;gap:10px}
     .layerItem{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.02);overflow:hidden}
     .layerItemHead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border);}
     .layerItemHead .name{font-weight:700;font-size:13px}
     .layerItemBody{padding:12px;display:grid;gap:10px}
-    .miniBtns{display:flex;gap:8px;flex-wrap:wrap}
-    .miniBtns button{padding:8px 10px;font-size:12px}
   </style>
 </head>
 <body>
@@ -178,14 +150,13 @@
     <div class="title">
       <h1>VJ Mixer</h1>
       <div class="sub">
-        Two modes: <b>Link Mixer</b> (YouTube URLs, no FX) and <b>FX Capture</b> (tab/window capture, real FX).
-        Capture requires a tap and the browser picker.
+        <b>Link Mixer</b> = multi YouTube links (blend only). <b>FX Capture</b> = capture tab/window pixels → real FX + crop.
       </div>
     </div>
     <div class="actions">
-      <div class="seg" role="tablist" aria-label="Mode">
-        <button id="tabLinks" class="active" role="tab">Link Mixer</button>
-        <button id="tabFX" role="tab">FX Capture</button>
+      <div class="seg" role="tablist">
+        <button id="tabLinks" class="active">Link Mixer</button>
+        <button id="tabFX">FX Capture</button>
       </div>
       <button id="btnPlay" class="primary">Play</button>
       <button id="btnPause">Pause</button>
@@ -200,10 +171,7 @@
       <button id="hudExit">Exit</button>
     </div>
 
-    <!-- Link mixer layers (iframes) -->
     <div class="layersRoot" id="layersRoot"></div>
-
-    <!-- FX output -->
     <canvas id="fxOut"></canvas>
 
     <div class="gate" id="gate">
@@ -213,20 +181,16 @@
 
   <div class="controls" id="controls">
     <div class="controlsHead">
-      <div class="left">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <span class="badge" id="modeBadge">Mode: Link Mixer</span>
-        <div class="pillrow">
-          <span class="pill">Dark UI</span>
-          <span class="pill">2–5 links</span>
-          <span class="pill">FX are only in Capture mode</span>
-        </div>
+        <span class="badge" id="status">Status: idle</span>
       </div>
-      <div class="small" id="status">Status: idle</div>
+      <div class="small">If FX mode is black: make sure you’re in FX mode and you captured A/B successfully.</div>
     </div>
 
     <div class="controlsBody" id="controlsBody">
-      <!-- MODE: LINKS -->
-      <div class="modeBlock active" id="modeLinks">
+      <!-- LINKS MODE -->
+      <div id="modeLinks" class="modeBlock active">
         <div class="grid">
           <div class="card">
             <div class="cardHead">
@@ -244,43 +208,38 @@
                   <option value="on">on</option>
                 </select>
               </label>
-              <div class="small">
-                In Link Mixer mode, FX are not possible on YouTube pixels. This mode is a stable multi-link blend stack.
-              </div>
               <div class="layerList" id="layerList"></div>
             </div>
           </div>
 
           <div class="card">
-            <div class="cardHead"><div class="cardTitle">Mixer Tips</div></div>
+            <div class="cardHead"><div class="cardTitle">Notes</div></div>
             <div class="cardBody">
               <div class="small">
-                • Autoplay often requires a tap. Use “Tap to Start” if you see a black screen.<br/>
-                • Keep Tap-through UI off to reduce YouTube overlays/controls popping up.<br/>
-                • Use Difference + Invert on upper layers for “VJ-ish” looks without pixel FX.
+                Link Mixer can’t run real pixel FX on YouTube iframes. Use it for stable blending only.
+                For real FX, switch to FX Capture mode.
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- MODE: FX CAPTURE -->
-      <div class="modeBlock" id="modeFX">
+      <!-- FX MODE -->
+      <div id="modeFX" class="modeBlock" style="display:none;">
         <div class="grid">
           <div class="card">
             <div class="cardHead">
-              <div class="cardTitle">Capture Sources (Tab/Window)</div>
+              <div class="cardTitle">Capture (Tab/Window)</div>
               <div class="miniBtns">
                 <button id="capA" class="primary">Capture A</button>
                 <button id="capB" class="primary">Capture B</button>
-                <button id="stopCap">Stop Capture</button>
+                <button id="stopCap">Stop</button>
               </div>
             </div>
             <div class="cardBody">
               <div class="small">
-                Use the browser picker to choose a <b>YouTube tab</b> or a <b>window</b> for A and B.
-                If your browser won’t allow two captures, capture A only and mirror/feedback it for B-like layering.
-                Some protected videos may appear black depending on OS/browser/video.
+                Choose a YouTube <b>tab</b> or <b>window</b> from the picker. Then use Crop A/B to frame each.
+                Some videos may appear black due to capture restrictions.
               </div>
 
               <div class="row">
@@ -304,88 +263,95 @@
                 <label>Invert B
                   <input id="fxInvB" type="range" min="0" max="1" step="0.01" value="1">
                 </label>
-                <label>Exposure
-                  <input id="fxExposure" type="range" min="0.5" max="2.5" step="0.01" value="1.05">
-                </label>
+                <label class="toggle"><input id="useAasB" type="checkbox"> If B missing, use A as B</label>
               </div>
 
               <div class="row">
-                <label>Contrast
-                  <input id="fxContrast" type="range" min="0.5" max="3.0" step="0.01" value="1.35">
-                </label>
-                <label>Saturation
-                  <input id="fxSat" type="range" min="0" max="3" step="0.01" value="1.25">
-                </label>
+                <label>Exposure <input id="fxExposure" type="range" min="0.5" max="2.5" step="0.01" value="1.05"></label>
+                <label>Contrast <input id="fxContrast" type="range" min="0.5" max="3.0" step="0.01" value="1.35"></label>
               </div>
+              <div class="row">
+                <label>Saturation <input id="fxSat" type="range" min="0" max="3" step="0.01" value="1.25"></label>
+                <label> </label>
+              </div>
+
+              <div class="card" style="background:rgba(255,255,255,.01)">
+                <div class="cardHead"><div class="cardTitle">Crop (normalized 0..1)</div>
+                  <div class="miniBtns">
+                    <button id="cropFull">A full / B full</button>
+                    <button id="cropSplit">A left / B right</button>
+                  </div>
+                </div>
+                <div class="cardBody">
+                  <div class="small">Crop is applied to each captured stream before mixing/FX.</div>
+
+                  <div class="row">
+                    <label>Crop A X <input id="cropAX" type="range" min="0" max="1" step="0.001" value="0"></label>
+                    <label>Crop A Y <input id="cropAY" type="range" min="0" max="1" step="0.001" value="0"></label>
+                  </div>
+                  <div class="row">
+                    <label>Crop A W <input id="cropAW" type="range" min="0.05" max="1" step="0.001" value="1"></label>
+                    <label>Crop A H <input id="cropAH" type="range" min="0.05" max="1" step="0.001" value="1"></label>
+                  </div>
+
+                  <div class="row">
+                    <label>Crop B X <input id="cropBX" type="range" min="0" max="1" step="0.001" value="0"></label>
+                    <label>Crop B Y <input id="cropBY" type="range" min="0" max="1" step="0.001" value="0"></label>
+                  </div>
+                  <div class="row">
+                    <label>Crop B W <input id="cropBW" type="range" min="0.05" max="1" step="0.001" value="1"></label>
+                    <label>Crop B H <input id="cropBH" type="range" min="0.05" max="1" step="0.001" value="1"></label>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
 
           <div class="card">
-            <div class="cardHead"><div class="cardTitle">FX (Real post-processing)</div></div>
+            <div class="cardHead"><div class="cardTitle">FX</div></div>
             <div class="cardBody">
               <div class="row">
                 <label class="toggle"><input id="tFeedback" type="checkbox"> Feedback / Trails</label>
-                <label>Amount
-                  <input id="feedbackAmt" type="range" min="0" max="0.98" step="0.001" value="0.88">
-                </label>
+                <label>Amount <input id="feedbackAmt" type="range" min="0" max="0.98" step="0.001" value="0.88"></label>
               </div>
               <div class="row">
-                <label>Zoom
-                  <input id="feedbackZoom" type="range" min="-0.08" max="0.12" step="0.001" value="0.06">
-                </label>
-                <label>Rotate
-                  <input id="feedbackRot" type="range" min="-2.5" max="2.5" step="0.01" value="0.12">
-                </label>
+                <label>Zoom <input id="feedbackZoom" type="range" min="-0.08" max="0.12" step="0.001" value="0.06"></label>
+                <label>Rotate <input id="feedbackRot" type="range" min="-2.5" max="2.5" step="0.01" value="0.12"></label>
               </div>
 
               <div class="row">
                 <label class="toggle"><input id="tKaleido" type="checkbox"> Kaleido / Mirror</label>
-                <label>Segments
-                  <input id="kSeg" type="range" min="2" max="16" step="1" value="6">
-                </label>
+                <label>Segments <input id="kSeg" type="range" min="2" max="16" step="1" value="6"></label>
               </div>
               <div class="row">
-                <label>Amount
-                  <input id="kAmt" type="range" min="0" max="1" step="0.01" value="0.85">
-                </label>
-                <label>Spin
-                  <input id="kSpin" type="range" min="-3" max="3" step="0.01" value="0.35">
-                </label>
+                <label>Amount <input id="kAmt" type="range" min="0" max="1" step="0.01" value="0.85"></label>
+                <label>Spin <input id="kSpin" type="range" min="-3" max="3" step="0.01" value="0.35"></label>
               </div>
 
               <div class="row">
                 <label class="toggle"><input id="tRGB" type="checkbox"> RGB Shift</label>
-                <label>Amount
-                  <input id="rgbAmt" type="range" min="0" max="0.05" step="0.0005" value="0.012">
-                </label>
+                <label>Amount <input id="rgbAmt" type="range" min="0" max="0.05" step="0.0005" value="0.012"></label>
               </div>
 
               <div class="row">
                 <label class="toggle"><input id="tGlitch" type="checkbox"> Glitch</label>
-                <label>Amount
-                  <input id="glitchAmt" type="range" min="0" max="1" step="0.01" value="0.35">
-                </label>
+                <label>Amount <input id="glitchAmt" type="range" min="0" max="1" step="0.01" value="0.35"></label>
               </div>
 
               <div class="row">
                 <label class="toggle"><input id="tPixel" type="checkbox"> Pixelate</label>
-                <label>Size
-                  <input id="pixSize" type="range" min="1" max="220" step="1" value="70">
-                </label>
+                <label>Size <input id="pixSize" type="range" min="1" max="220" step="1" value="70"></label>
               </div>
 
               <div class="row">
                 <label class="toggle"><input id="tScan" type="checkbox"> Scanlines</label>
-                <label>Amount
-                  <input id="scanAmt" type="range" min="0" max="1" step="0.01" value="0.35">
-                </label>
+                <label>Amount <input id="scanAmt" type="range" min="0" max="1" step="0.01" value="0.35"></label>
               </div>
 
               <div class="row">
                 <label class="toggle"><input id="tVig" type="checkbox"> Vignette</label>
-                <label>Amount
-                  <input id="vigAmt" type="range" min="0" max="1" step="0.01" value="0.55">
-                </label>
+                <label>Amount <input id="vigAmt" type="range" min="0" max="1" step="0.01" value="0.55"></label>
               </div>
 
               <div class="miniBtns">
@@ -393,8 +359,7 @@
               </div>
 
               <div class="small">
-                This mode is the “real FX” route: capture pixels → shader them.
-                If YouTube shows black, try another video, another browser, or “Entire Screen” capture via a desktop browser.
+                If the output is still black after capture: confirm you’re in FX mode (button at top), and that A has video (not “paused” in the captured tab).
               </div>
             </div>
           </div>
@@ -405,25 +370,27 @@
 </div><!-- /wrap -->
 
 <script>
-/* ============================================================
-   MODE + UI STATE
-============================================================ */
 const $ = (id)=>document.getElementById(id);
 
-let currentMode = "links"; // "links" or "fx"
+/* =========================
+   Mode + Controls
+========================= */
+let currentMode = "links";
 function setMode(mode){
   currentMode = mode;
   $("tabLinks").classList.toggle("active", mode==="links");
   $("tabFX").classList.toggle("active", mode==="fx");
-  $("modeLinks").classList.toggle("active", mode==="links");
-  $("modeFX").classList.toggle("active", mode==="fx");
 
   $("modeBadge").textContent = mode==="links" ? "Mode: Link Mixer" : "Mode: FX Capture";
   $("layersRoot").style.display = mode==="links" ? "block" : "none";
   $("fxOut").style.display = mode==="fx" ? "block" : "none";
-  $("status").textContent = "Status: " + (mode==="links" ? "Link Mixer ready" : "FX Capture ready");
-}
 
+  $("modeLinks").style.display = mode==="links" ? "block" : "none";
+  $("modeFX").style.display = mode==="fx" ? "block" : "none";
+
+  $("status").textContent = "Status: " + (mode==="links" ? "Link Mixer ready" : "FX Capture ready");
+  resizeCanvas(); // important when switching modes
+}
 $("tabLinks").addEventListener("click", ()=>setMode("links"));
 $("tabFX").addEventListener("click", ()=>setMode("fx"));
 
@@ -435,9 +402,9 @@ $("btnToggleControls").addEventListener("click", ()=>{
 controls.classList.remove("open");
 $("btnToggleControls").textContent = "Show Controls";
 
-/* ============================================================
-   FULLSCREEN (real + pseudo fallback)
-============================================================ */
+/* =========================
+   Fullscreen (real + pseudo)
+========================= */
 function canRealFullscreen(){
   return !!($("stage").requestFullscreen && document.fullscreenEnabled);
 }
@@ -459,21 +426,15 @@ async function toggleFullscreen(){
 $("btnFullscreen").addEventListener("click", toggleFullscreen);
 $("hudExit").addEventListener("click", toggleFullscreen);
 
-/* ============================================================
-   TRANSPORT
-============================================================ */
 $("btnPlay").addEventListener("click", ()=>playAll());
 $("btnPause").addEventListener("click", ()=>pauseAll());
 $("hudPlay").addEventListener("click", ()=>playAll());
 $("gateBtn").addEventListener("click", ()=>playAll());
+function showGate(show){ $("gate").classList.toggle("show", !!show); }
 
-function showGate(show){
-  $("gate").classList.toggle("show", !!show);
-}
-
-/* ============================================================
-   MODE 1: LINK MIXER (YouTube iframes, no FX)
-============================================================ */
+/* =========================
+   MODE 1: Link Mixer (no FX)
+========================= */
 const DEFAULT_LINKS = [
   "https://m.youtube.com/watch?v=3pxrECZYEAA",
   "https://m.youtube.com/watch?v=dS-MaUk6YBI"
@@ -482,9 +443,9 @@ const BLENDS = [
   "normal","multiply","screen","overlay","darken","lighten","color-dodge","color-burn",
   "hard-light","soft-light","difference","exclusion","hue","saturation","color","luminosity"
 ];
-
 let linkLayerCount = 2;
 const linkLayers = []; // {el, ui, url}
+
 function extractVideoId(url){
   if (!url) return null;
   const raw = url.trim();
@@ -502,8 +463,7 @@ function extractVideoId(url){
 }
 function buildEmbedSrc(videoId){
   const origin = encodeURIComponent(location.origin);
-  // best effort UI suppression
-  return `https://www.youtube-nocookie.com/embed/${videoId}?enablejsapi=0&playsinline=1&autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&fs=0&disablekb=1&origin=${origin}`;
+  return `https://www.youtube-nocookie.com/embed/${videoId}?playsinline=1&autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&fs=0&disablekb=1&origin=${origin}`;
 }
 function fillBlendOptions(sel, def="difference"){
   sel.innerHTML = BLENDS.map(b=>`<option value="${b}">${b}</option>`).join("");
@@ -528,63 +488,41 @@ function applyLinkStyle(i){
 function mountLinkIframe(i){
   const L = linkLayers[i];
   const vid = extractVideoId(L.url);
-  if (!vid){
-    L.el.innerHTML = "";
-    return;
-  }
+  if (!vid){ L.el.innerHTML=""; return; }
   const src = buildEmbedSrc(vid);
-  L.el.innerHTML = `<iframe allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen="false" src="${src}"></iframe>`;
+  L.el.innerHTML = `<iframe allow="autoplay; encrypted-media; picture-in-picture" src="${src}"></iframe>`;
 }
 function rebuildLinkUI(){
   const list = $("layerList");
   list.innerHTML = "";
-
   for (let i=0;i<linkLayerCount;i++){
     const item = document.createElement("div");
-    item.className = "layerItem";
+    item.className="layerItem";
     item.innerHTML = `
       <div class="layerItemHead">
         <div class="name">Layer ${i+1}</div>
-        <div class="miniBtns">
-          <button data-act="apply" data-i="${i}">Apply</button>
-        </div>
+        <div class="miniBtns"><button data-act="apply" data-i="${i}">Apply</button></div>
       </div>
       <div class="layerItemBody">
-        <label>YouTube URL or ID
-          <input type="text" data-f="url" data-i="${i}"/>
-        </label>
+        <label>YouTube URL or ID <input type="text" data-f="url" data-i="${i}"/></label>
         <div class="row">
-          <label>Opacity
-            <input type="range" min="0" max="1" step="0.01" data-f="op" data-i="${i}"/>
-          </label>
-          <label>Blend
-            <select data-f="blend" data-i="${i}"></select>
-          </label>
+          <label>Opacity <input type="range" min="0" max="1" step="0.01" data-f="op" data-i="${i}"/></label>
+          <label>Blend <select data-f="blend" data-i="${i}"></select></label>
         </div>
         <div class="row">
-          <label>Invert
-            <input type="range" min="0" max="1" step="0.01" data-f="inv" data-i="${i}"/>
-          </label>
-          <label>Contrast
-            <input type="range" min="0.5" max="3" step="0.01" data-f="ct" data-i="${i}"/>
-          </label>
+          <label>Invert <input type="range" min="0" max="1" step="0.01" data-f="inv" data-i="${i}"/></label>
+          <label>Contrast <input type="range" min="0.5" max="3" step="0.01" data-f="ct" data-i="${i}"/></label>
         </div>
         <div class="row">
-          <label>Saturation
-            <input type="range" min="0" max="3" step="0.01" data-f="sat" data-i="${i}"/>
-          </label>
-          <label>Hue rotate
-            <input type="range" min="-180" max="180" step="1" data-f="hue" data-i="${i}"/>
-          </label>
+          <label>Saturation <input type="range" min="0" max="3" step="0.01" data-f="sat" data-i="${i}"/></label>
+          <label>Hue rotate <input type="range" min="-180" max="180" step="1" data-f="hue" data-i="${i}"/></label>
         </div>
       </div>
     `;
     list.appendChild(item);
 
-    // seed defaults
     const L = linkLayers[i];
     item.querySelector(`[data-f="url"][data-i="${i}"]`).value = L.url;
-
     item.querySelector(`[data-f="op"][data-i="${i}"]`).value = L.ui.op;
     item.querySelector(`[data-f="inv"][data-i="${i}"]`).value = L.ui.inv;
     item.querySelector(`[data-f="ct"][data-i="${i}"]`).value = L.ui.ct;
@@ -596,206 +534,164 @@ function rebuildLinkUI(){
   }
 }
 function rebuildLinkLayers(){
-  $("layersRoot").innerHTML = "";
-  linkLayers.length = 0;
+  $("layersRoot").innerHTML="";
+  linkLayers.length=0;
   for (let i=0;i<linkLayerCount;i++){
     const el = makeLinkLayer(i);
     linkLayers.push({
       el,
       url: DEFAULT_LINKS[i] || DEFAULT_LINKS[1],
-      ui: {
-        op: i===0 ? 1 : 0.85,
-        blend: i===0 ? "normal" : "difference",
-        inv: i===0 ? 0 : 1,
-        ct: i===0 ? 1 : 1.6,
-        sat: i===0 ? 1 : 1.2,
-        hue: 0
-      }
+      ui: { op:i===0?1:0.85, blend:i===0?"normal":"difference", inv:i===0?0:1, ct:i===0?1:1.6, sat:i===0?1:1.2, hue:0 }
     });
     mountLinkIframe(i);
     applyLinkStyle(i);
   }
   rebuildLinkUI();
 }
-$("addLayer").addEventListener("click", ()=>{
-  if (linkLayerCount>=5) return;
-  linkLayerCount++;
-  rebuildLinkLayers();
-});
-$("removeLayer").addEventListener("click", ()=>{
-  if (linkLayerCount<=2) return;
-  linkLayerCount--;
-  rebuildLinkLayers();
-});
-$("reloadLinks").addEventListener("click", ()=>{
-  for (let i=0;i<linkLayerCount;i++){
-    mountLinkIframe(i);
-    applyLinkStyle(i);
-  }
-});
-$("tapUI").addEventListener("change", ()=>{
-  for (let i=0;i<linkLayerCount;i++) applyLinkStyle(i);
-});
+$("addLayer").addEventListener("click", ()=>{ if (linkLayerCount<5){ linkLayerCount++; rebuildLinkLayers(); }});
+$("removeLayer").addEventListener("click", ()=>{ if (linkLayerCount>2){ linkLayerCount--; rebuildLinkLayers(); }});
+$("reloadLinks").addEventListener("click", ()=>{ for (let i=0;i<linkLayerCount;i++){ mountLinkIframe(i); applyLinkStyle(i);} });
+$("tapUI").addEventListener("change", ()=>{ for (let i=0;i<linkLayerCount;i++) applyLinkStyle(i); });
 $("layerList").addEventListener("input", (e)=>{
-  const t = e.target;
-  const i = parseInt(t.getAttribute("data-i"), 10);
-  const f = t.getAttribute("data-f");
-  if (Number.isNaN(i) || !f) return;
-
-  const L = linkLayers[i];
-  if (!L) return;
-  if (f==="url") L.url = t.value;
-  if (f==="op") L.ui.op = parseFloat(t.value);
-  if (f==="blend") L.ui.blend = t.value;
-  if (f==="inv") L.ui.inv = parseFloat(t.value);
-  if (f==="ct") L.ui.ct = parseFloat(t.value);
-  if (f==="sat") L.ui.sat = parseFloat(t.value);
-  if (f==="hue") L.ui.hue = parseInt(t.value, 10);
-
+  const t=e.target;
+  const i=parseInt(t.getAttribute("data-i"),10);
+  const f=t.getAttribute("data-f");
+  if (Number.isNaN(i)||!f) return;
+  const L=linkLayers[i]; if (!L) return;
+  if (f==="url") L.url=t.value;
+  if (f==="op") L.ui.op=parseFloat(t.value);
+  if (f==="blend") L.ui.blend=t.value;
+  if (f==="inv") L.ui.inv=parseFloat(t.value);
+  if (f==="ct") L.ui.ct=parseFloat(t.value);
+  if (f==="sat") L.ui.sat=parseFloat(t.value);
+  if (f==="hue") L.ui.hue=parseInt(t.value,10);
   applyLinkStyle(i);
 });
 $("layerList").addEventListener("click", (e)=>{
-  const btn = e.target.closest("button[data-act]");
+  const btn=e.target.closest("button[data-act]");
   if (!btn) return;
-  const act = btn.getAttribute("data-act");
-  const i = parseInt(btn.getAttribute("data-i"), 10);
-  if (act==="apply"){
-    mountLinkIframe(i);
-    applyLinkStyle(i);
-  }
+  const i=parseInt(btn.getAttribute("data-i"),10);
+  mountLinkIframe(i);
+  applyLinkStyle(i);
 });
 
-/* ============================================================
-   MODE 2: FX CAPTURE (Tab/Window capture → WebGL FX)
-============================================================ */
-let capStreamA = null, capStreamB = null;
-const capVideoA = document.createElement("video");
-const capVideoB = document.createElement("video");
-capVideoA.muted = true; capVideoB.muted = true;
-capVideoA.playsInline = true; capVideoB.playsInline = true;
+/* =========================
+   MODE 2: FX Capture + WebGL + Crop
+========================= */
+let capStreamA=null, capStreamB=null;
+const capVideoA=document.createElement("video");
+const capVideoB=document.createElement("video");
+capVideoA.muted=true; capVideoB.muted=true;
+capVideoA.playsInline=true; capVideoB.playsInline=true;
 
 async function startCapture(which){
-  // which: "A" or "B"
   try{
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: { frameRate: 60 },
-      audio: false
+      video:{ frameRate:60 }, audio:false
     });
     if (which==="A"){
-      capStreamA = stream;
-      capVideoA.srcObject = stream;
-      await capVideoA.play();
+      capStreamA=stream; capVideoA.srcObject=stream; await capVideoA.play();
     } else {
-      capStreamB = stream;
-      capVideoB.srcObject = stream;
-      await capVideoB.play();
+      capStreamB=stream; capVideoB.srcObject=stream; await capVideoB.play();
     }
-    $("status").textContent = `Status: captured ${which} (choose a Tab or Window)`;
+    $("status").textContent = `Status: captured ${which}`;
     showGate(false);
+    // Switch to FX mode automatically once you capture something
+    setMode("fx");
   }catch(e){
     $("status").textContent = `Status: capture ${which} canceled/blocked`;
   }
 }
-
 function stopCaptureAll(){
   for (const s of [capStreamA, capStreamB]){
     if (!s) continue;
     for (const tr of s.getTracks()) tr.stop();
   }
-  capStreamA = null; capStreamB = null;
-  capVideoA.srcObject = null; capVideoB.srcObject = null;
-  $("status").textContent = "Status: capture stopped";
+  capStreamA=null; capStreamB=null;
+  capVideoA.srcObject=null; capVideoB.srcObject=null;
+  $("status").textContent="Status: capture stopped";
 }
-
 $("capA").addEventListener("click", ()=>startCapture("A"));
 $("capB").addEventListener("click", ()=>startCapture("B"));
 $("stopCap").addEventListener("click", stopCaptureAll);
 
-// FX toggles helper
 $("fxAllOff").addEventListener("click", ()=>{
-  $("tFeedback").checked = false;
-  $("tKaleido").checked = false;
-  $("tRGB").checked = false;
-  $("tGlitch").checked = false;
-  $("tPixel").checked = false;
-  $("tScan").checked = false;
-  $("tVig").checked = false;
+  $("tFeedback").checked=false;
+  $("tKaleido").checked=false;
+  $("tRGB").checked=false;
+  $("tGlitch").checked=false;
+  $("tPixel").checked=false;
+  $("tScan").checked=false;
+  $("tVig").checked=false;
 });
 
-/* ============================================================
-   PLAY / PAUSE for both modes
-============================================================ */
+/* Crop presets */
+function setCrop(Ax,Ay,Aw,Ah,Bx,By,Bw,Bh){
+  $("cropAX").value=Ax; $("cropAY").value=Ay; $("cropAW").value=Aw; $("cropAH").value=Ah;
+  $("cropBX").value=Bx; $("cropBY").value=By; $("cropBW").value=Bw; $("cropBH").value=Bh;
+}
+$("cropFull").addEventListener("click", ()=>setCrop(0,0,1,1, 0,0,1,1));
+$("cropSplit").addEventListener("click", ()=>setCrop(0,0,0.5,1, 0.5,0,0.5,1));
+
+/* =========================
+   Transport
+========================= */
 function playAll(){
   if (currentMode==="links"){
-    // if autoplay blocked, show gate
     showGate(true);
-    // iframes manage themselves; gate is just UX
     setTimeout(()=>showGate(false), 900);
   } else {
-    // ensure capture videos play
     if (capVideoA.srcObject) capVideoA.play().catch(()=>{});
     if (capVideoB.srcObject) capVideoB.play().catch(()=>{});
   }
 }
 function pauseAll(){
   if (currentMode==="fx"){
-    capVideoA.pause(); capVideoB.pause();
+    capVideoA.pause();
+    capVideoB.pause();
   }
 }
 
-/* ============================================================
-   WebGL FX Pipeline (2 inputs + feedback buffer)
-============================================================ */
-const canvas = $("fxOut");
-let gl = null;
-let prog = null;
-let quadVBO = null;
-let texA = null, texB = null;
-let fbTex0 = null, fbTex1 = null;
-let fbFbo0 = null, fbFbo1 = null;
-let ping = 0;
+/* =========================
+   WebGL pipeline (2 inputs + feedback ping-pong)
+========================= */
+const canvas=$("fxOut");
+let gl=null, prog=null, quadVBO=null;
+let texA=null, texB=null;
+let fbTex0=null, fbTex1=null, fbFbo0=null, fbFbo1=null, ping=0;
 
-function createShader(gl, type, src){
-  const sh = gl.createShader(type);
-  gl.shaderSource(sh, src);
+function createShader(gl,type,src){
+  const sh=gl.createShader(type);
+  gl.shaderSource(sh,src);
   gl.compileShader(sh);
-  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)){
+  if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS)){
     console.error(gl.getShaderInfoLog(sh));
-    gl.deleteShader(sh);
-    return null;
+    gl.deleteShader(sh); return null;
   }
   return sh;
 }
-function createProgram(gl, vsSrc, fsSrc){
-  const vs = createShader(gl, gl.VERTEX_SHADER, vsSrc);
-  const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSrc);
-  if (!vs || !fs) return null;
-  const p = gl.createProgram();
-  gl.attachShader(p, vs); gl.attachShader(p, fs);
+function createProgram(gl,vsSrc,fsSrc){
+  const vs=createShader(gl,gl.VERTEX_SHADER,vsSrc);
+  const fs=createShader(gl,gl.FRAGMENT_SHADER,fsSrc);
+  if(!vs||!fs) return null;
+  const p=gl.createProgram();
+  gl.attachShader(p,vs); gl.attachShader(p,fs);
   gl.linkProgram(p);
-  if (!gl.getProgramParameter(p, gl.LINK_STATUS)){
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){
     console.error(gl.getProgramInfoLog(p));
-    gl.deleteProgram(p);
-    return null;
+    gl.deleteProgram(p); return null;
   }
   gl.deleteShader(vs); gl.deleteShader(fs);
   return p;
 }
-
-const VS = `
+const VS=`
 attribute vec2 aPos;
 varying vec2 vUv;
-void main(){
-  vUv = aPos*0.5 + 0.5;
-  gl_Position = vec4(aPos, 0.0, 1.0);
-}
+void main(){ vUv=aPos*0.5+0.5; gl_Position=vec4(aPos,0.0,1.0); }
 `;
-
-// Fragment shader: mix A/B, apply FX, write to screen OR feedback buffer
-const FS = `
+const FS=`
 precision highp float;
 varying vec2 vUv;
-
 uniform sampler2D uA;
 uniform sampler2D uB;
 uniform sampler2D uFB;
@@ -804,6 +700,10 @@ uniform float uTime;
 
 uniform int uHasA;
 uniform int uHasB;
+uniform int uUseAasB;
+
+uniform vec4 uCropA; // x,y,w,h
+uniform vec4 uCropB;
 
 uniform int uBlendMode;
 uniform float uBOpacity;
@@ -837,230 +737,207 @@ uniform float uScanAmt;
 uniform int uVigOn;
 uniform float uVigAmt;
 
-vec3 satAdjust(vec3 c, float s){
-  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  return mix(vec3(l), c, s);
+vec3 satAdjust(vec3 c,float s){
+  float l=dot(c,vec3(0.2126,0.7152,0.0722));
+  return mix(vec3(l),c,s);
 }
-
-vec2 rot(vec2 p, float a){
-  float c = cos(a), s = sin(a);
-  return mat2(c,-s,s,c) * p;
+vec2 rot(vec2 p,float a){
+  float c=cos(a), s=sin(a);
+  return mat2(c,-s,s,c)*p;
 }
-
-// blend modes (limited set)
 vec3 blend(vec3 a, vec3 b, int mode){
   if (mode==0) return b;                          // normal
   if (mode==1) return a*b;                        // multiply
-  if (mode==2) return 1.0 - (1.0-a)*(1.0-b);      // screen
+  if (mode==2) return 1.0-(1.0-a)*(1.0-b);        // screen
   if (mode==3) return abs(a-b);                   // difference
-  if (mode==4) return a + b;                      // add
+  if (mode==4) return a+b;                        // add
   if (mode==5) return mix(2.0*a*b, 1.0-2.0*(1.0-a)*(1.0-b), step(0.5,a)); // overlay-ish
   if (mode==6) return a + b - 2.0*a*b;            // exclusion-ish
   return b;
 }
-
 float hash(vec2 p){
-  p = fract(p*vec2(123.34,456.21));
-  p += dot(p, p+34.345);
+  p=fract(p*vec2(123.34,456.21));
+  p+=dot(p,p+34.345);
   return fract(p.x*p.y);
 }
-
+vec2 cropUv(vec2 uv, vec4 c){
+  // clamp crop to valid region
+  float x = clamp(c.x, 0.0, 1.0);
+  float y = clamp(c.y, 0.0, 1.0);
+  float w = clamp(c.z, 0.001, 1.0);
+  float h = clamp(c.w, 0.001, 1.0);
+  vec2 u = vec2(x,y) + uv*vec2(w,h);
+  return clamp(u, 0.0, 1.0);
+}
 void main(){
   vec2 uv = vUv;
 
-  // Pixelate
   if (uPixelOn==1){
-    float px = max(1.0, uPixSize);
-    uv = floor(uv*px)/px + 0.5/px;
+    float px=max(1.0,uPixSize);
+    uv=floor(uv*px)/px + 0.5/px;
   }
 
-  // Fetch inputs
-  vec3 A = (uHasA==1) ? texture2D(uA, uv).rgb : vec3(0.0);
-  vec3 B = (uHasB==1) ? texture2D(uB, uv).rgb : vec3(0.0);
+  vec2 uva = cropUv(uv, uCropA);
+  vec2 uvb = cropUv(uv, uCropB);
 
-  // Invert B (0..1)
-  B = mix(B, 1.0 - B, clamp(uInvB,0.0,1.0));
+  vec3 A = (uHasA==1) ? texture2D(uA, uva).rgb : vec3(0.0);
 
-  // RGB shift (applied to B primarily)
-  if (uRGBOn==1 && uHasB==1){
-    float amt = uRGBAmt;
-    vec2 off = vec2(amt, 0.0);
-    float r = texture2D(uB, uv + off).r;
-    float g = texture2D(uB, uv).g;
-    float b = texture2D(uB, uv - off).b;
+  // B can be real B OR fall back to A
+  vec3 B = vec3(0.0);
+  if (uHasB==1) B = texture2D(uB, uvb).rgb;
+  else if (uUseAasB==1 && uHasA==1) B = texture2D(uA, uvb).rgb;
+
+  B = mix(B, 1.0-B, clamp(uInvB,0.0,1.0));
+
+  if (uRGBOn==1){
+    float amt=uRGBAmt;
+    vec2 off=vec2(amt,0.0);
+    vec3 src = (uHasB==1) ? texture2D(uB, uvb).rgb : ((uUseAasB==1 && uHasA==1) ? texture2D(uA, uvb).rgb : vec3(0.0));
+    float r = (uHasB==1) ? texture2D(uB, uvb+off).r : ((uUseAasB==1 && uHasA==1) ? texture2D(uA, uvb+off).r : 0.0);
+    float g = src.g;
+    float b = (uHasB==1) ? texture2D(uB, uvb-off).b : ((uUseAasB==1 && uHasA==1) ? texture2D(uA, uvb-off).b : 0.0);
     vec3 rgb = vec3(r,g,b);
     rgb = mix(rgb, 1.0-rgb, clamp(uInvB,0.0,1.0));
     B = rgb;
   }
 
-  // Glitch (scanline jitter + block swap)
   if (uGlitchOn==1){
-    float g = uGlitchAmt;
-    float t = uTime*1.2;
-    float line = floor(uv.y*240.0);
-    float rnd = hash(vec2(line, floor(t*6.0)));
-    float jitter = (rnd-0.5)*0.02*g;
-    uv.x += jitter;
+    float g=uGlitchAmt;
+    float t=uTime*1.2;
+    float line=floor(uv.y*240.0);
+    float rnd=hash(vec2(line,floor(t*6.0)));
+    uv.x += (rnd-0.5)*0.02*g;
+    float blockY=floor(uv.y*10.0);
+    float br=hash(vec2(blockY,floor(t*3.0)));
+    if (br < 0.18*g) uv.x += (br-0.09)*0.12*g;
 
-    float blockY = floor(uv.y*10.0);
-    float br = hash(vec2(blockY, floor(t*3.0)));
-    if (br < 0.18*g){
-      uv.x += (br-0.09)*0.12*g;
-    }
+    uva = cropUv(uv, uCropA);
+    uvb = cropUv(uv, uCropB);
 
-    // refetch after glitch
-    A = (uHasA==1) ? texture2D(uA, uv).rgb : vec3(0.0);
-    B = (uHasB==1) ? texture2D(uB, uv).rgb : vec3(0.0);
-    B = mix(B, 1.0 - B, clamp(uInvB,0.0,1.0));
+    A = (uHasA==1) ? texture2D(uA, uva).rgb : vec3(0.0);
+    if (uHasB==1) B = texture2D(uB, uvb).rgb;
+    else if (uUseAasB==1 && uHasA==1) B = texture2D(uA, uvb).rgb;
+    else B = vec3(0.0);
+
+    B = mix(B, 1.0-B, clamp(uInvB,0.0,1.0));
   }
 
-  // Kaleido (apply to combined base after blend for stronger look)
-  vec3 base = A;
-  int mode = uBlendMode;
-  vec3 mixedB = blend(A, B, mode);
-  base = mix(A, mixedB, clamp(uBOpacity,0.0,1.0));
+  vec3 mixedB = blend(A,B,uBlendMode);
+  vec3 base = mix(A, mixedB, clamp(uBOpacity,0.0,1.0));
 
-  // Feedback buffer (pre-color)
+  // feedback
   vec2 p = vUv - 0.5;
   vec2 fbUv = vUv;
   if (uFeedbackOn==1){
-    float a = uFbRot;
-    float z = 1.0 + uFbZoom;
-    vec2 rp = rot(p, a) / z;
+    vec2 rp = rot(p, uFbRot) / (1.0 + uFbZoom);
     fbUv = rp + 0.5;
     vec3 fb = texture2D(uFB, fbUv).rgb;
     base = mix(base, fb, clamp(uFbAmt,0.0,0.98));
   }
 
-  // Kaleido transform
+  // kaleido (sample from the *mixed* field)
   if (uKaleidoOn==1){
     vec2 kp = vUv - 0.5;
-    float ang = atan(kp.y, kp.x);
+    float ang = atan(kp.y,kp.x);
     float r = length(kp);
     float seg = max(2.0, uKSeg);
-    float k = 6.28318530718 / seg;
+    float k = 6.28318530718/seg;
     ang = mod(ang + uTime*uKSpin, k);
     ang = abs(ang - k*0.5);
-    vec2 ku = vec2(cos(ang), sin(ang)) * r;
+    vec2 ku = vec2(cos(ang), sin(ang))*r;
     vec2 uvk = ku + 0.5;
-    vec3 kcol = vec3(0.0);
-    if (uHasA==1) kcol += texture2D(uA, uvk).rgb;
-    if (uHasB==1) {
-      vec3 bb = texture2D(uB, uvk).rgb;
-      bb = mix(bb, 1.0-bb, clamp(uInvB,0.0,1.0));
-      kcol = blend(kcol, bb, mode);
-    }
-    base = mix(base, kcol, clamp(uKAmt,0.0,1.0));
+    // apply crop to kaleido samples too
+    vec3 kA = (uHasA==1) ? texture2D(uA, cropUv(uvk,uCropA)).rgb : vec3(0.0);
+    vec3 kB = vec3(0.0);
+    if (uHasB==1) kB = texture2D(uB, cropUv(uvk,uCropB)).rgb;
+    else if (uUseAasB==1 && uHasA==1) kB = texture2D(uA, cropUv(uvk,uCropB)).rgb;
+    kB = mix(kB, 1.0-kB, clamp(uInvB,0.0,1.0));
+    vec3 kMix = mix(kA, blend(kA,kB,uBlendMode), clamp(uBOpacity,0.0,1.0));
+    base = mix(base, kMix, clamp(uKAmt,0.0,1.0));
   }
 
-  // Exposure/contrast/sat
   base *= uExposure;
   base = (base - 0.5)*uContrast + 0.5;
   base = satAdjust(base, uSat);
 
-  // Scanlines
   if (uScanOn==1){
     float s = sin(vUv.y*uRes.y*3.14159);
     float scan = mix(1.0, 0.78 + 0.22*s, clamp(uScanAmt,0.0,1.0));
     base *= scan;
   }
-
-  // Vignette
   if (uVigOn==1){
     float d = distance(vUv, vec2(0.5));
     float v = smoothstep(0.35, 0.95, d);
     base *= mix(1.0, 1.0 - v, clamp(uVigAmt,0.0,1.0));
   }
 
-  gl_FragColor = vec4(clamp(base, 0.0, 1.0), 1.0);
+  gl_FragColor = vec4(clamp(base,0.0,1.0), 1.0);
 }
 `;
 
 function resizeCanvas(){
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const rect = canvas.getBoundingClientRect();
-  const w = Math.max(2, Math.floor(rect.width*dpr));
-  const h = Math.max(2, Math.floor(rect.height*dpr));
-  if (canvas.width !== w || canvas.height !== h){
-    canvas.width = w; canvas.height = h;
+  const dpr=Math.min(2, window.devicePixelRatio||1);
+  const rect=canvas.getBoundingClientRect();
+  const w=Math.max(2, Math.floor(rect.width*dpr));
+  const h=Math.max(2, Math.floor(rect.height*dpr));
+  if (canvas.width!==w || canvas.height!==h){
+    canvas.width=w; canvas.height=h;
     if (gl){
       gl.viewport(0,0,w,h);
       initFeedbackTextures(w,h);
     }
   }
 }
-
 function makeTex(){
-  const t = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, t);
+  const t=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,t);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindTexture(gl.TEXTURE_2D,null);
   return t;
 }
-
 function initFeedbackTextures(w,h){
-  // (re)create feedback ping-pong textures & fbos
   function makeFBTex(){
-    const t = makeTex();
-    gl.bindTexture(gl.TEXTURE_2D, t);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.bindTexture(gl.TEXTURE_2D, null);
+    const t=makeTex();
+    gl.bindTexture(gl.TEXTURE_2D,t);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    gl.bindTexture(gl.TEXTURE_2D,null);
     return t;
   }
   function makeFBO(tex){
-    const f = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    const f=gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER,f);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
     return f;
   }
-
-  // cleanup old
-  [fbTex0, fbTex1].forEach(t=>t && gl.deleteTexture(t));
-  [fbFbo0, fbFbo1].forEach(f=>f && gl.deleteFramebuffer(f));
-
-  fbTex0 = makeFBTex();
-  fbTex1 = makeFBTex();
-  fbFbo0 = makeFBO(fbTex0);
-  fbFbo1 = makeFBO(fbTex1);
-  ping = 0;
+  [fbTex0,fbTex1].forEach(t=>t&&gl.deleteTexture(t));
+  [fbFbo0,fbFbo1].forEach(f=>f&&gl.deleteFramebuffer(f));
+  fbTex0=makeFBTex(); fbTex1=makeFBTex();
+  fbFbo0=makeFBO(fbTex0); fbFbo1=makeFBO(fbTex1);
+  ping=0;
 }
-
 function initGL(){
-  gl = canvas.getContext("webgl", { antialias:false, alpha:false, preserveDrawingBuffer:false });
-  if (!gl){
-    $("status").textContent = "Status: WebGL not supported";
-    return;
-  }
+  gl = canvas.getContext("webgl", {antialias:false, alpha:false});
+  if (!gl){ $("status").textContent="Status: WebGL not supported"; return; }
   prog = createProgram(gl, VS, FS);
-  if (!prog){
-    $("status").textContent = "Status: shader compile failed";
-    return;
-  }
+  if (!prog){ $("status").textContent="Status: shader compile failed"; return; }
   gl.useProgram(prog);
 
   quadVBO = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-    -1,-1,  1,-1, -1, 1,
-    -1, 1,  1,-1,  1, 1
-  ]), gl.STATIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
 
-  const aPos = gl.getAttribLocation(prog, "aPos");
+  const aPos = gl.getAttribLocation(prog,"aPos");
   gl.enableVertexAttribArray(aPos);
-  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
 
-  texA = makeTex();
-  texB = makeTex();
-
+  texA=makeTex(); texB=makeTex();
   resizeCanvas();
 }
-
 function blendModeToInt(v){
-  // matches shader: normal=0 multiply=1 screen=2 difference=3 add=4 overlay-ish=5 exclusion-ish=6
   if (v==="normal") return 0;
   if (v==="multiply") return 1;
   if (v==="screen") return 2;
@@ -1070,121 +947,128 @@ function blendModeToInt(v){
   if (v==="exclusion") return 6;
   return 3;
 }
-
 function updateVideoTexture(tex, video){
   gl.bindTexture(gl.TEXTURE_2D, tex);
-  try{
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-  }catch(e){
-    // Ignore frames not ready
-  }
+  try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,video); }catch(e){}
   gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
-function renderFX(timeMs){
-  if (!gl || currentMode!=="fx") return;
-  resizeCanvas();
+/* One continuous RAF loop (fixes “black after switching to FX mode”) */
+function tick(t){
+  if (gl && currentMode==="fx"){
+    resizeCanvas();
 
-  const hasA = !!capStreamA && capVideoA.readyState >= 2;
-  const hasB = !!capStreamB && capVideoB.readyState >= 2;
+    const hasA = !!capStreamA && capVideoA.readyState>=2;
+    const hasB = !!capStreamB && capVideoB.readyState>=2;
 
-  if (hasA) updateVideoTexture(texA, capVideoA);
-  if (hasB) updateVideoTexture(texB, capVideoB);
+    if (hasA) updateVideoTexture(texA, capVideoA);
+    if (hasB) updateVideoTexture(texB, capVideoB);
 
-  gl.useProgram(prog);
+    gl.useProgram(prog);
 
-  const w = canvas.width, h = canvas.height;
+    const w=canvas.width, h=canvas.height;
 
-  // bind input textures
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, texA);
-  gl.uniform1i(gl.getUniformLocation(prog,"uA"), 0);
+    // inputs
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texA);
+    gl.uniform1i(gl.getUniformLocation(prog,"uA"), 0);
 
-  gl.activeTexture(gl.TEXTURE1);
-  gl.bindTexture(gl.TEXTURE_2D, texB);
-  gl.uniform1i(gl.getUniformLocation(prog,"uB"), 1);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, texB);
+    gl.uniform1i(gl.getUniformLocation(prog,"uB"), 1);
 
-  // feedback texture is previous ping
-  const prevTex = (ping===0) ? fbTex0 : fbTex1;
-  const nextFbo = (ping===0) ? fbFbo1 : fbFbo0;
-  gl.activeTexture(gl.TEXTURE2);
-  gl.bindTexture(gl.TEXTURE_2D, prevTex);
-  gl.uniform1i(gl.getUniformLocation(prog,"uFB"), 2);
+    const prevTex = (ping===0) ? fbTex0 : fbTex1;
+    const nextFbo = (ping===0) ? fbFbo1 : fbFbo0;
 
-  gl.uniform2f(gl.getUniformLocation(prog,"uRes"), w, h);
-  gl.uniform1f(gl.getUniformLocation(prog,"uTime"), timeMs/1000);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, prevTex);
+    gl.uniform1i(gl.getUniformLocation(prog,"uFB"), 2);
 
-  gl.uniform1i(gl.getUniformLocation(prog,"uHasA"), hasA ? 1 : 0);
-  gl.uniform1i(gl.getUniformLocation(prog,"uHasB"), hasB ? 1 : 0);
+    gl.uniform2f(gl.getUniformLocation(prog,"uRes"), w, h);
+    gl.uniform1f(gl.getUniformLocation(prog,"uTime"), t/1000);
 
-  // mixer uniforms
-  gl.uniform1i(gl.getUniformLocation(prog,"uBlendMode"), blendModeToInt($("fxBlend").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uBOpacity"), parseFloat($("fxBOpacity").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uInvB"), parseFloat($("fxInvB").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uExposure"), parseFloat($("fxExposure").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uContrast"), parseFloat($("fxContrast").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uSat"), parseFloat($("fxSat").value));
+    gl.uniform1i(gl.getUniformLocation(prog,"uHasA"), hasA?1:0);
+    gl.uniform1i(gl.getUniformLocation(prog,"uHasB"), hasB?1:0);
+    gl.uniform1i(gl.getUniformLocation(prog,"uUseAasB"), $("useAasB").checked ? 1 : 0);
 
-  // fx toggles
-  gl.uniform1i(gl.getUniformLocation(prog,"uFeedbackOn"), $("tFeedback").checked ? 1 : 0);
-  gl.uniform1f(gl.getUniformLocation(prog,"uFbAmt"), parseFloat($("feedbackAmt").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uFbZoom"), parseFloat($("feedbackZoom").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uFbRot"), parseFloat($("feedbackRot").value));
+    // crops
+    const cropA = [parseFloat($("cropAX").value), parseFloat($("cropAY").value), parseFloat($("cropAW").value), parseFloat($("cropAH").value)];
+    const cropB = [parseFloat($("cropBX").value), parseFloat($("cropBY").value), parseFloat($("cropBW").value), parseFloat($("cropBH").value)];
+    gl.uniform4f(gl.getUniformLocation(prog,"uCropA"), cropA[0],cropA[1],cropA[2],cropA[3]);
+    gl.uniform4f(gl.getUniformLocation(prog,"uCropB"), cropB[0],cropB[1],cropB[2],cropB[3]);
 
-  gl.uniform1i(gl.getUniformLocation(prog,"uKaleidoOn"), $("tKaleido").checked ? 1 : 0);
-  gl.uniform1f(gl.getUniformLocation(prog,"uKSeg"), parseFloat($("kSeg").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uKAmt"), parseFloat($("kAmt").value));
-  gl.uniform1f(gl.getUniformLocation(prog,"uKSpin"), parseFloat($("kSpin").value));
+    // mixer
+    gl.uniform1i(gl.getUniformLocation(prog,"uBlendMode"), blendModeToInt($("fxBlend").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uBOpacity"), parseFloat($("fxBOpacity").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uInvB"), parseFloat($("fxInvB").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uExposure"), parseFloat($("fxExposure").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uContrast"), parseFloat($("fxContrast").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uSat"), parseFloat($("fxSat").value));
 
-  gl.uniform1i(gl.getUniformLocation(prog,"uRGBOn"), $("tRGB").checked ? 1 : 0);
-  gl.uniform1f(gl.getUniformLocation(prog,"uRGBAmt"), parseFloat($("rgbAmt").value));
+    // fx toggles
+    gl.uniform1i(gl.getUniformLocation(prog,"uFeedbackOn"), $("tFeedback").checked?1:0);
+    gl.uniform1f(gl.getUniformLocation(prog,"uFbAmt"), parseFloat($("feedbackAmt").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uFbZoom"), parseFloat($("feedbackZoom").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uFbRot"), parseFloat($("feedbackRot").value));
 
-  gl.uniform1i(gl.getUniformLocation(prog,"uGlitchOn"), $("tGlitch").checked ? 1 : 0);
-  gl.uniform1f(gl.getUniformLocation(prog,"uGlitchAmt"), parseFloat($("glitchAmt").value));
+    gl.uniform1i(gl.getUniformLocation(prog,"uKaleidoOn"), $("tKaleido").checked?1:0);
+    gl.uniform1f(gl.getUniformLocation(prog,"uKSeg"), parseFloat($("kSeg").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uKAmt"), parseFloat($("kAmt").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uKSpin"), parseFloat($("kSpin").value));
 
-  gl.uniform1i(gl.getUniformLocation(prog,"uPixelOn"), $("tPixel").checked ? 1 : 0);
-  gl.uniform1f(gl.getUniformLocation(prog,"uPixSize"), parseFloat($("pixSize").value));
+    gl.uniform1i(gl.getUniformLocation(prog,"uRGBOn"), $("tRGB").checked?1:0);
+    gl.uniform1f(gl.getUniformLocation(prog,"uRGBAmt"), parseFloat($("rgbAmt").value));
 
-  gl.uniform1i(gl.getUniformLocation(prog,"uScanOn"), $("tScan").checked ? 1 : 0);
-  gl.uniform1f(gl.getUniformLocation(prog,"uScanAmt"), parseFloat($("scanAmt").value));
+    gl.uniform1i(gl.getUniformLocation(prog,"uGlitchOn"), $("tGlitch").checked?1:0);
+    gl.uniform1f(gl.getUniformLocation(prog,"uGlitchAmt"), parseFloat($("glitchAmt").value));
 
-  gl.uniform1i(gl.getUniformLocation(prog,"uVigOn"), $("tVig").checked ? 1 : 0);
-  gl.uniform1f(gl.getUniformLocation(prog,"uVigAmt"), parseFloat($("vigAmt").value));
+    gl.uniform1i(gl.getUniformLocation(prog,"uPixelOn"), $("tPixel").checked?1:0);
+    gl.uniform1f(gl.getUniformLocation(prog,"uPixSize"), parseFloat($("pixSize").value));
 
-  // 1) render to feedback nextFbo
-  gl.bindFramebuffer(gl.FRAMEBUFFER, nextFbo);
-  gl.viewport(0,0,w,h);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.uniform1i(gl.getUniformLocation(prog,"uScanOn"), $("tScan").checked?1:0);
+    gl.uniform1f(gl.getUniformLocation(prog,"uScanAmt"), parseFloat($("scanAmt").value));
 
-  // 2) render to screen using the same shader but with updated feedback (swap)
-  ping = 1 - ping;
-  const nowTex = (ping===0) ? fbTex0 : fbTex1;
+    gl.uniform1i(gl.getUniformLocation(prog,"uVigOn"), $("tVig").checked?1:0);
+    gl.uniform1f(gl.getUniformLocation(prog,"uVigAmt"), parseFloat($("vigAmt").value));
 
-  gl.activeTexture(gl.TEXTURE2);
-  gl.bindTexture(gl.TEXTURE_2D, nowTex);
+    // render to feedback
+    gl.bindFramebuffer(gl.FRAMEBUFFER, nextFbo);
+    gl.viewport(0,0,w,h);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  gl.viewport(0,0,w,h);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
+    // swap
+    ping = 1-ping;
+    const nowTex = (ping===0) ? fbTex0 : fbTex1;
 
-  requestAnimationFrame(renderFX);
+    // render to screen using updated feedback tex
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, nowTex);
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0,0,w,h);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  requestAnimationFrame(tick);
 }
 
-/* ============================================================
-   BOOT
-============================================================ */
+/* =========================
+   Boot
+========================= */
+$("fxAllOff").addEventListener("click", ()=>{
+  $("tFeedback").checked=false; $("tKaleido").checked=false; $("tRGB").checked=false;
+  $("tGlitch").checked=false; $("tPixel").checked=false; $("tScan").checked=false; $("tVig").checked=false;
+});
+
+window.addEventListener("resize", resizeCanvas);
+
 function boot(){
   initGL();
   rebuildLinkLayers();
   setMode("links");
-  requestAnimationFrame(renderFX);
-
-  // try to help autoplay UX
+  // UX for autoplay restrictions
   showGate(false);
   setTimeout(()=>showGate(true), 600);
-  setTimeout(()=>showGate(false), 1500);
+  setTimeout(()=>showGate(false), 1400);
+  requestAnimationFrame(tick);
 }
-window.addEventListener("resize", ()=>resizeCanvas());
 document.addEventListener("DOMContentLoaded", boot);
 </script>
 </body>
