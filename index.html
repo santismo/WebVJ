@@ -17,6 +17,7 @@
     h1{margin:0;font-size:18px;letter-spacing:.2px}
     .sub{font-size:12px;color:var(--muted);line-height:1.25}
     .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
     button{
       background:rgba(255,255,255,.04);
       border:1px solid var(--border);
@@ -36,6 +37,10 @@
     .seg button{border-radius:999px; padding:8px 12px; border:1px solid transparent; background:transparent;}
     .seg button.active{background:rgba(122,162,255,.18); border-color:rgba(122,162,255,.35);}
 
+    /* Quick random bar */
+    #quickRandomBar{display:flex;align-items:center;gap:8px}
+    #quickRandomBtns{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
     .stage{
       position:relative; width:100%; aspect-ratio:16/9;
       border-radius:var(--radius); overflow:hidden; border:1px solid var(--border);
@@ -45,31 +50,6 @@
     .layer{position:absolute; inset:0; pointer-events:none; will-change:opacity,filter,transform; mix-blend-mode:normal; opacity:1;}
     .layer iframe{width:100%;height:100%;border:0;display:block;}
     canvas#fxOut{position:absolute; inset:0; width:100%; height:100%; display:none; z-index:30;}
-
-    /* === Always-visible Random buttons (even when controls hidden) === */
-    .stageOverlay{
-      position:absolute; left:10px; top:10px; right:10px;
-      z-index:60;
-      display:flex; gap:8px; flex-wrap:wrap; align-items:center;
-      pointer-events:auto;
-    }
-    .stageOverlay .chip{
-      background:rgba(0,0,0,.38);
-      border:1px solid var(--border);
-      backdrop-filter: blur(6px);
-      border-radius:999px;
-      padding:6px;
-      display:flex; gap:6px; align-items:center; flex-wrap:wrap;
-    }
-    .stageOverlay button{
-      padding:8px 10px;
-      font-size:12px;
-    }
-    .stageOverlay .muted{
-      font-size:12px; color:var(--muted); padding:0 6px;
-      user-select:none;
-    }
-    .stageOverlay.hide{ display:none; }
 
     .fxLoading{
       position:absolute; inset:0; display:none; z-index:40;
@@ -188,8 +168,9 @@
     <div class="title">
       <h1>VJ Mixer</h1>
       <div class="sub">
-        <b>Link Mixer</b> = multiple YouTube links (blend) + per-layer crop/zoom + auto-random from decks.
+        <b>Link Mixer</b> = multiple links (blend) + per-layer crop/zoom + auto-random from decks.
         <b>FX Capture</b> = capture tab/window pixels → real FX (targets fixed) + slider number readouts.
+        <span style="opacity:.9"><b>Experimental:</b> FX-on-Link-Mixer via Invidious video streams (CORS-dependent).</span>
       </div>
     </div>
     <div class="actions">
@@ -199,18 +180,17 @@
       </div>
       <button id="btnFullscreen" class="primary">Fullscreen Stage</button>
       <button id="btnToggleControls">Show Controls</button>
+
+      <!-- Quick random buttons (always visible) -->
+      <div class="seg" id="quickRandomBar" style="padding:6px 10px;">
+        <span class="small" style="padding:0 6px;align-self:center;">Quick</span>
+        <span id="quickRandomBtns" class="miniBtns"></span>
+        <button id="quickRandomAll" class="primary" style="padding:8px 12px;">Random → All</button>
+      </div>
     </div>
   </div>
 
   <div class="stage" id="stage">
-    <!-- Always-visible Random buttons -->
-    <div class="stageOverlay" id="stageOverlay">
-      <div class="chip" id="overlayChip">
-        <span class="muted">Quick Random:</span>
-        <span class="muted" id="overlayDeckName">Deck: Trippy</span>
-      </div>
-    </div>
-
     <div class="layersRoot" id="layersRoot"></div>
     <canvas id="fxOut"></canvas>
     <div class="fxLoading" id="fxLoading">
@@ -229,6 +209,7 @@
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <span class="badge" id="modeBadge">Mode: Link Mixer</span>
         <span class="badge" id="status">Status: idle</span>
+        <span class="badge" id="linkFxBadge" style="display:none;border-color:rgba(122,162,255,.35);background:rgba(122,162,255,.08);">Link FX: ON</span>
       </div>
       <div class="small">Tip: In capture mode, fullscreen/theater helps “mostly just video”.</div>
     </div>
@@ -248,7 +229,7 @@
             </div>
             <div class="cardBody">
               <div class="row">
-                <label>Tap-through YouTube UI
+                <label>Tap-through UI
                   <select id="tapUI">
                     <option value="off" selected>off (recommended)</option>
                     <option value="on">on</option>
@@ -261,6 +242,22 @@
                   </select>
                 </label>
               </div>
+
+              <div class="card" style="background:rgba(255,255,255,.01)">
+                <div class="cardHead"><div class="cardTitle">Experimental (Option C): Try FX in Link Mixer via Invidious Video Mode</div></div>
+                <div class="cardBody">
+                  <label class="toggle">
+                    <input id="linkFxEnable" type="checkbox">
+                    Enable FX in Link Mixer (CORS-dependent)
+                  </label>
+                  <div class="small">
+                    When enabled, Link Mixer renders <b>up to 5 layers</b> as &lt;video&gt; streams (Invidious) into a compositor,
+                    then runs the FX shader pipeline on the final mix.
+                    If it goes black, toggle off (CORS likely blocked).
+                  </div>
+                </div>
+              </div>
+
               <div class="layerList" id="layerList"></div>
             </div>
           </div>
@@ -331,11 +328,11 @@
               <div class="deckList" id="deckList"></div>
 
               <div class="card" style="background:rgba(255,255,255,.01)">
-                <div class="cardHead"><div class="cardTitle">Why no FX in Link Mixer?</div></div>
+                <div class="cardHead"><div class="cardTitle">Why no FX in normal Link Mixer?</div></div>
                 <div class="cardBody">
                   <div class="small">
-                    YouTube iframes are cross-origin: browsers block pixel access, so real WebGL FX can’t run on them.
-                    Use FX Capture mode for real trails/kaleido/glitch.
+                    YouTube iframes are cross-origin: browsers block pixel access, so real pixel FX can’t run on them.
+                    FX Capture is guaranteed. <b>Experimental Link FX</b> tries Invidious &lt;video&gt; streams (CORS-dependent).
                   </div>
                 </div>
               </div>
@@ -599,6 +596,9 @@
 
               <div class="small">
                 If the capture looks flipped: toggle Flip V / Flip H and Rotate until correct.
+                <div style="margin-top:6px;opacity:.95">
+                  <b>Link FX note:</b> in Link FX mode, the shader input is the mixed Link output (A). B may be unused.
+                </div>
               </div>
             </div>
           </div>
@@ -620,13 +620,22 @@ function setMode(mode){
   $("tabLinks").classList.toggle("active", mode==="links");
   $("tabFX").classList.toggle("active", mode==="fx");
   $("modeBadge").textContent = mode==="links" ? "Mode: Link Mixer" : "Mode: FX Capture";
-  $("layersRoot").style.display = mode==="links" ? "block" : "none";
-  $("fxOut").style.display = mode==="fx" ? "block" : "none";
+
+  // In Link FX mode we hide iframe layers and show the FX canvas
+  const showCanvas = (mode==="fx") || (mode==="links" && linkFxEnabled);
+  $("layersRoot").style.display = (mode==="links" && !linkFxEnabled) ? "block" : "none";
+  $("fxOut").style.display = showCanvas ? "block" : "none";
+
   $("modeLinks").style.display = mode==="links" ? "block" : "none";
   $("modeFX").style.display = mode==="fx" ? "block" : "none";
-  $("status").textContent = "Status: " + (mode==="links" ? "Link Mixer ready" : "FX Capture ready");
+
+  $("linkFxBadge").style.display = (mode==="links" && linkFxEnabled) ? "inline-flex" : "none";
+
+  $("status").textContent = "Status: " + (mode==="links"
+    ? (linkFxEnabled ? "Link FX ready (experimental)" : "Link Mixer ready")
+    : "FX Capture ready");
+
   updateFxLoadingOverlay();
-  updateStageOverlayVisibility();
   resizeCanvas();
 }
 $("tabLinks").addEventListener("click", ()=>setMode("links"));
@@ -642,9 +651,7 @@ $("btnToggleControls").textContent = "Show Controls";
 
 /* Fullscreen stage */
 const stageEl = $("stage");
-function isFullscreen(){
-  return document.fullscreenElement === stageEl;
-}
+function isFullscreen(){ return document.fullscreenElement === stageEl; }
 async function toggleFullscreen(){
   try{
     if (!isFullscreen()) await stageEl.requestFullscreen({navigationUI:"hide"});
@@ -691,8 +698,32 @@ const BLENDS = [
 ];
 
 let linkLayerCount = 2;
-const linkLayers = []; // {el, ui, url, auto:{on,ms,deckKey}}
+const linkLayers = []; // {el, ui, url, auto:{on,ms,deckKey}, playing, _blanked}
 let layerAutoTimers = new Map();
+
+/* Experimental Link FX (Option C) */
+let linkFxEnabled = false;
+const linkVideos = [];       // per-layer <video> when linkFxEnabled
+const linkVideoSrc = [];     // per-layer currently loaded videoId (for avoiding refetch)
+let linkFxWarned = false;
+const linkCompCanvas = document.createElement("canvas");
+const linkCompCtx = linkCompCanvas.getContext("2d", { alpha:false, desynchronized:true });
+
+/* Quick Random bar */
+function renderQuickRandomButtons(){
+  const host = $("quickRandomBtns");
+  if (!host) return;
+  host.innerHTML = "";
+  for (let i=0;i<linkLayerCount;i++){
+    const b = document.createElement("button");
+    b.textContent = `Rnd L${i+1}`;
+    b.style.padding = "8px 10px";
+    b.style.fontSize = "12px";
+    b.addEventListener("click", ()=>pickRandomIntoLayer(i));
+    host.appendChild(b);
+  }
+}
+$("quickRandomAll").addEventListener("click", ()=>randomizeAllLayers());
 
 /* =========================
    Decks (Invidious playlist → video IDs)
@@ -704,7 +735,6 @@ const DEFAULT_DECKS = [
 ];
 
 const decks = {}; // key -> {name,url,listId,items:[{videoId,title,thumb}]}
-/* Default deck for Link Mixer auto + initial random */
 let DEFAULT_DECK_KEY = "trippy";
 
 function getInvidiousBase(){
@@ -799,7 +829,6 @@ function refreshDeckDropdowns(){
     sel.innerHTML = Object.keys(decks).map(k=>`<option value="${k}">${decks[k].name}</option>`).join("");
     sel.value = decks[cur] ? cur : DEFAULT_DECK_KEY;
   });
-  updateOverlayDeckLabel();
 }
 
 function updateDeckTargetLayerOptions(){
@@ -813,46 +842,6 @@ function updateDeckTargetLayerOptions(){
   }
 }
 
-/* =========================
-   Always-visible overlay random buttons
-========================= */
-function updateOverlayDeckLabel(){
-  const name = decks[DEFAULT_DECK_KEY]?.name || "Trippy Visuals";
-  $("overlayDeckName").textContent = `Deck: ${name}`;
-}
-function updateStageOverlayVisibility(){
-  // Only show quick buttons in Link Mixer mode
-  $("stageOverlay").classList.toggle("hide", currentMode!=="links");
-}
-function rebuildStageOverlayButtons(){
-  const chip = $("overlayChip");
-  // keep the two label spans, remove old buttons
-  chip.querySelectorAll('button[data-ov]').forEach(b=>b.remove());
-
-  for (let i=0;i<linkLayerCount;i++){
-    const b = document.createElement("button");
-    b.className = "primary";
-    b.setAttribute("data-ov","1");
-    b.textContent = `Random L${i+1}`;
-    b.addEventListener("click", ()=>{
-      // force random from the DEFAULT_DECK_KEY (Trippy by default)
-      if (!decks[DEFAULT_DECK_KEY]?.items?.length){
-        $("status").textContent = `Status: deck "${decks[DEFAULT_DECK_KEY]?.name||DEFAULT_DECK_KEY}" not loaded`;
-        return;
-      }
-      // set that layer's deckKey to default too (nice for consistency)
-      if (linkLayers[i]) linkLayers[i].auto.deckKey = DEFAULT_DECK_KEY;
-      pickRandomIntoLayer(i);
-    });
-    chip.appendChild(b);
-  }
-
-  updateOverlayDeckLabel();
-}
-
-/* =========================
-   Deck render
-========================= */
 function renderDecks(){
   const wrap = $("deckList");
   wrap.innerHTML = "";
@@ -928,7 +917,6 @@ $("deckList").addEventListener("click", async (e)=>{
     DEFAULT_DECK_KEY = k;
     $("deckStatus").textContent = `Decks: default auto-random = "${decks[k].name}"`;
     refreshDeckDropdowns();
-    rebuildStageOverlayButtons();
   }
 });
 
@@ -958,6 +946,10 @@ $("reloadAllDecks").addEventListener("click", async ()=>{
 
 $("invBase").addEventListener("change", ()=>{
   $("deckStatus").textContent = "Decks: switched Invidious base (reload decks)";
+  // In Link FX mode, sources may need reloading for CORS differences
+  if (linkFxEnabled){
+    $("status").textContent = "Status: Invidious base changed — reload links to refresh Link FX streams";
+  }
 });
 
 $("thumbCount").addEventListener("change", renderDecks);
@@ -1024,12 +1016,104 @@ function applyLinkStyle(i){
 
   L.el.style.filter = `invert(${L.ui.inv}) contrast(${L.ui.ct}) saturate(${L.ui.sat}) hue-rotate(${L.ui.hue}deg)`;
 }
-function mountLinkIframe(i){
+
+/* =============== Invidious direct video (Link FX Option C) =============== */
+async function getInvidiousDirectVideoUrl(videoId){
+  const base = getInvidiousBase();
+  const url = `${base}/api/v1/videos/${encodeURIComponent(videoId)}`;
+  const r = await fetch(url, { mode:"cors" });
+  if (!r.ok) throw new Error("Invidious video API failed");
+  const j = await r.json();
+
+  const streams = []
+    .concat(Array.isArray(j.formatStreams) ? j.formatStreams : [])
+    .concat(Array.isArray(j.adaptiveFormats) ? j.adaptiveFormats : []);
+
+  // Prefer MP4 video, not audio-only
+  const pick =
+    streams.find(s => (s.type||"").includes("video/mp4") && (s.url)) ||
+    streams.find(s => (s.type||"").includes("video/") && (s.url));
+
+  if (!pick || !pick.url) throw new Error("No playable stream found");
+
+  let out = pick.url;
+  if (out.startsWith("/")) out = base.replace(/\/+$/,'') + out;
+  out = out.replace(/^http:\/\//i, "https://");
+  return out;
+}
+
+function ensureLinkVideo(i){
+  if (!linkVideos[i]){
+    const v = document.createElement("video");
+    v.muted = true;
+    v.playsInline = true;
+    v.loop = ($("loopVideos").value === "on");
+    v.crossOrigin = "anonymous"; // only works if server sends proper ACAO
+    v.preload = "auto";
+    linkVideos[i] = v;
+    linkVideoSrc[i] = null;
+  }
+  // keep loop updated
+  linkVideos[i].loop = ($("loopVideos").value === "on");
+  return linkVideos[i];
+}
+
+function syncLayerPlayButton(i){
+  const btn = document.querySelector(`button[data-act="togglePlay"][data-i="${i}"]`);
+  if (!btn) return;
+  btn.textContent = linkLayers[i]?.playing ? "Pause" : "Play";
+}
+
+async function mountLinkSource(i){
   const L = linkLayers[i];
   const vid = extractVideoId(L.url);
   if (!vid){ L.el.innerHTML=""; return; }
-  const src = buildEmbedSrc(vid);
-  L.el.innerHTML = `<iframe allow="autoplay; encrypted-media; picture-in-picture" src="${src}"></iframe>`;
+
+  // If paused, in iframe mode we blank; in Link FX we load but pause (freeze frame possible)
+  if (!L.playing){
+    if (!linkFxEnabled){
+      L.el.innerHTML = ""; // blank
+    } else {
+      const v = ensureLinkVideo(i);
+      try{
+        if (linkVideoSrc[i] !== vid){
+          const direct = await getInvidiousDirectVideoUrl(vid);
+          v.src = direct;
+          linkVideoSrc[i] = vid;
+        }
+        // keep paused
+        v.pause();
+      }catch(e){
+        console.warn(e);
+      }
+    }
+    syncLayerPlayButton(i);
+    return;
+  }
+
+  if (!linkFxEnabled){
+    const src = buildEmbedSrc(vid);
+    L.el.innerHTML = `<iframe allow="autoplay; encrypted-media; picture-in-picture" src="${src}"></iframe>`;
+    syncLayerPlayButton(i);
+    return;
+  }
+
+  // Link FX enabled: no iframe; render via compositor -> shader
+  L.el.innerHTML = "";
+  const v = ensureLinkVideo(i);
+  try{
+    if (linkVideoSrc[i] !== vid){
+      const direct = await getInvidiousDirectVideoUrl(vid);
+      v.src = direct;
+      linkVideoSrc[i] = vid;
+    }
+    await v.play();
+    $("status").textContent = `Status: Link FX stream OK (Layer ${i+1})`;
+  }catch(e){
+    console.warn(e);
+    $("status").textContent = `Status: Link FX failed (Layer ${i+1}) — toggle off if black`;
+  }
+  syncLayerPlayButton(i);
 }
 
 /* Push video to a specific layer, OR (layerIndex=null) use deckTargetLayer dropdown */
@@ -1044,7 +1128,7 @@ function pushVideoToLayer(videoId, layerIndex=null){
   const inp = document.querySelector(`input[data-f="url"][data-i="${i}"]`);
   if (inp) inp.value = url;
 
-  mountLinkIframe(i);
+  mountLinkSource(i);
   applyLinkStyle(i);
   $("status").textContent = `Status: set Layer ${i+1}`;
 }
@@ -1104,6 +1188,7 @@ function rebuildLinkUI(){
       <div class="layerItemHead">
         <div class="name">Layer ${i+1}</div>
         <div class="miniBtns">
+          <button data-act="togglePlay" data-i="${i}">Pause</button>
           <button data-act="apply" data-i="${i}">Apply</button>
           <button data-act="pickRandom" data-i="${i}">Random Now</button>
         </div>
@@ -1177,14 +1262,16 @@ function rebuildLinkUI(){
     const deckSel = item.querySelector(`select[data-f="autoDeck"][data-i="${i}"]`);
     deckSel.innerHTML = Object.keys(decks).map(k=>`<option value="${k}">${decks[k].name}</option>`).join("");
     deckSel.value = L.auto.deckKey || DEFAULT_DECK_KEY;
+
+    syncLayerPlayButton(i);
   }
 
   updateDeckTargetLayerOptions();
   refreshDeckDropdowns();
-  rebuildStageOverlayButtons();
+  renderQuickRandomButtons();
 }
 
-function rebuildLinkLayers(){
+async function rebuildLinkLayers(){
   $("layersRoot").innerHTML="";
   linkLayers.length=0;
   stopAllLayerAuto();
@@ -1203,19 +1290,33 @@ function rebuildLinkLayers(){
         hue:0,
         cx:0.5, cy:0.5, zoom:1
       },
-      auto: { on:false, ms:30000, deckKey: DEFAULT_DECK_KEY }
+      auto: { on:false, ms:30000, deckKey: DEFAULT_DECK_KEY },
+      playing: true
     });
-    mountLinkIframe(i);
+
+    // mount source
+    await mountLinkSource(i);
     applyLinkStyle(i);
   }
   rebuildLinkUI();
 }
 
-$("addLayer").addEventListener("click", ()=>{ if (linkLayerCount<5){ linkLayerCount++; rebuildLinkLayers(); renderDecks(); }});
-$("removeLayer").addEventListener("click", ()=>{ if (linkLayerCount>2){ linkLayerCount--; rebuildLinkLayers(); renderDecks(); }});
-$("reloadLinks").addEventListener("click", ()=>{ for (let i=0;i<linkLayerCount;i++){ mountLinkIframe(i); applyLinkStyle(i);} });
+$("addLayer").addEventListener("click", async ()=>{ if (linkLayerCount<5){ linkLayerCount++; await rebuildLinkLayers(); renderDecks(); }});
+$("removeLayer").addEventListener("click", async ()=>{ if (linkLayerCount>2){ linkLayerCount--; await rebuildLinkLayers(); renderDecks(); }});
+$("reloadLinks").addEventListener("click", async ()=>{
+  for (let i=0;i<linkLayerCount;i++){
+    linkVideoSrc[i] = null; // force refetch in Link FX mode
+    await mountLinkSource(i);
+    applyLinkStyle(i);
+  }
+});
 $("tapUI").addEventListener("change", ()=>{ for (let i=0;i<linkLayerCount;i++) applyLinkStyle(i); });
-$("loopVideos").addEventListener("change", ()=>{ for (let i=0;i<linkLayerCount;i++) mountLinkIframe(i); });
+$("loopVideos").addEventListener("change", async ()=>{
+  for (let i=0;i<linkLayerCount;i++){
+    if (linkFxEnabled && linkVideos[i]) linkVideos[i].loop = ($("loopVideos").value === "on");
+    await mountLinkSource(i);
+  }
+});
 
 $("layerList").addEventListener("input", (e)=>{
   const t=e.target;
@@ -1224,7 +1325,7 @@ $("layerList").addEventListener("input", (e)=>{
   if (Number.isNaN(i)||!f) return;
   const L=linkLayers[i]; if (!L) return;
 
-  if (f==="url") L.url=t.value;
+  if (f==="url") { L.url=t.value; linkVideoSrc[i]=null; }
   if (f==="op") L.ui.op=parseFloat(t.value);
   if (f==="blend") L.ui.blend=t.value;
   if (f==="inv") L.ui.inv=parseFloat(t.value);
@@ -1243,14 +1344,127 @@ $("layerList").addEventListener("input", (e)=>{
   applyLinkStyle(i);
 });
 
-$("layerList").addEventListener("click", (e)=>{
+$("layerList").addEventListener("click", async (e)=>{
   const btn=e.target.closest("button[data-act]");
   if (!btn) return;
   const i=parseInt(btn.getAttribute("data-i"),10);
   const act = btn.getAttribute("data-act");
-  if (act==="apply"){ mountLinkIframe(i); applyLinkStyle(i); }
+  if (Number.isNaN(i)) return;
+  const L = linkLayers[i];
+  if (!L) return;
+
+  if (act==="apply"){ await mountLinkSource(i); applyLinkStyle(i); }
   if (act==="pickRandom"){ pickRandomIntoLayer(i); }
+  if (act==="togglePlay"){
+    L.playing = !L.playing;
+
+    if (linkFxEnabled){
+      const v = ensureLinkVideo(i);
+      try{
+        if (L.playing){
+          await mountLinkSource(i);
+        } else {
+          v.pause();
+        }
+      }catch(e){}
+    } else {
+      // iframe: blank when paused, remount when play
+      if (L.playing){
+        await mountLinkSource(i);
+      } else {
+        L.el.innerHTML = "";
+      }
+    }
+
+    syncLayerPlayButton(i);
+    $("status").textContent = `Status: Layer ${i+1} ${L.playing ? "play" : "pause"}`;
+  }
 });
+
+/* =========================
+   Link FX compositor (mix up to 5 layers into a canvas)
+========================= */
+function blendToCanvasOp(b){
+  // Canvas supports many directly; fallback to source-over
+  const ok = new Set([
+    "source-over","multiply","screen","overlay","darken","lighten","color-dodge","color-burn",
+    "hard-light","soft-light","difference","exclusion","hue","saturation","color","luminosity"
+  ]);
+  const op = (b || "normal");
+  if (op==="normal") return "source-over";
+  return ok.has(op) ? op : "source-over";
+}
+
+function renderLinkComposite(w,h){
+  // Ensure comp canvas matches output resolution
+  if (linkCompCanvas.width !== w || linkCompCanvas.height !== h){
+    linkCompCanvas.width = w;
+    linkCompCanvas.height = h;
+  }
+  const ctx = linkCompCtx;
+  if (!ctx) return false;
+
+  // Clear
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.filter = "none";
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0,0,w,h);
+
+  let drew = false;
+
+  for (let i=0;i<linkLayerCount;i++){
+    const L = linkLayers[i];
+    if (!L) continue;
+    if (!L.playing) {
+      // paused: if we have a video, draw current frame (paused frame still drawable if CORS ok)
+      // if no video, skip
+    }
+
+    const v = linkVideos[i];
+    if (!v || v.readyState < 2) continue;
+
+    // Apply per-layer transform (zoom around center)
+    const cx = (L.ui.cx ?? 0.5);
+    const cy = (L.ui.cy ?? 0.5);
+    const z = Math.max(1, L.ui.zoom || 1);
+
+    // Per-layer filter
+    const inv = Math.max(0, Math.min(1, L.ui.inv || 0));
+    const ct = Math.max(0.1, L.ui.ct || 1);
+    const sat = Math.max(0, L.ui.sat || 1);
+    const hue = (L.ui.hue || 0);
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, L.ui.op ?? 1));
+    ctx.globalCompositeOperation = blendToCanvasOp(L.ui.blend);
+
+    ctx.filter = `invert(${inv}) contrast(${ct}) saturate(${sat}) hue-rotate(${hue}deg)`;
+
+    // Zoom about center point in output space
+    ctx.translate(w*cx, h*cy);
+    ctx.scale(z, z);
+    ctx.translate(-w*cx, -h*cy);
+
+    // Draw stretched to stage (same as iframe fill)
+    try{
+      ctx.drawImage(v, 0, 0, w, h);
+      drew = true;
+    }catch(e){
+      // likely CORS taint; compositor can't draw
+      // We'll surface this once in status
+      if (!linkFxWarned){
+        linkFxWarned = true;
+        $("status").textContent = "Status: Link FX blocked by CORS (try another Invidious base or toggle off)";
+      }
+    }
+    ctx.restore();
+  }
+
+  ctx.restore();
+  return drew;
+}
 
 /* =========================
    MODE 2: FX Capture + WebGL
@@ -1318,7 +1532,7 @@ $("fitA").addEventListener("click", ()=>autoFit("A"));
 $("fitB").addEventListener("click", ()=>autoFit("B"));
 
 /* =========================
-   WebGL pipeline (targets fixed)
+   WebGL pipeline (same shader)
 ========================= */
 const canvas=$("fxOut");
 let gl=null, prog=null, quadVBO=null;
@@ -1524,6 +1738,8 @@ void main(){
   vec3 A = sampleA(uv);
   vec3 B = sampleB(uv);
 
+  // If B is missing and we are not using A as B, just treat Mix as A
+  // (we do this by forcing B opacity to 0 in JS for Link FX mode)
   if (uRGBOn==1){
     if (uRGBT==0) A = rgbShiftFromSampler(0, uv);
     else if (uRGBT==1) B = rgbShiftFromSampler(1, uv);
@@ -1700,22 +1916,39 @@ function rotToQ(v){
   if (n===270) return 3;
   return 0;
 }
-function updateVideoTexture(tex, video){
+function updateVideoTexture(tex, source){
   gl.bindTexture(gl.TEXTURE_2D, tex);
-  try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,video); }catch(e){}
+  try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,source); }catch(e){}
   gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
 function tick(t){
-  if (gl && currentMode==="fx"){
+  const runningFx = (gl && (currentMode==="fx" || (currentMode==="links" && linkFxEnabled)));
+  if (runningFx){
     resizeCanvas();
-    const hasA = !!capStreamA && capVideoA.readyState>=2;
-    const hasB = !!capStreamB && capVideoB.readyState>=2;
-    if (hasA) updateVideoTexture(texA, capVideoA);
-    if (hasB) updateVideoTexture(texB, capVideoB);
+    const w=canvas.width, h=canvas.height;
+
+    // Decide what A/B are:
+    // - FX Capture mode: A/B = captured videos
+    // - Link FX mode: A = composited link canvas, B unused (we force BOpacity=0)
+    let hasA=false, hasB=false;
+
+    if (currentMode==="fx"){
+      hasA = !!capStreamA && capVideoA.readyState>=2;
+      hasB = !!capStreamB && capVideoB.readyState>=2;
+      if (hasA) updateVideoTexture(texA, capVideoA);
+      if (hasB) updateVideoTexture(texB, capVideoB);
+    } else {
+      // Link FX mode
+      // Ensure link videos exist for all layers in use
+      for (let i=0;i<linkLayerCount;i++) ensureLinkVideo(i);
+      const ok = renderLinkComposite(w,h);
+      hasA = ok;
+      hasB = false;
+      if (hasA) updateVideoTexture(texA, linkCompCanvas);
+    }
 
     gl.useProgram(prog);
-    const w=canvas.width, h=canvas.height;
 
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, texA);
     gl.uniform1i(gl.getUniformLocation(prog,"uA"), 0);
@@ -1734,20 +1967,28 @@ function tick(t){
 
     gl.uniform1i(gl.getUniformLocation(prog,"uHasA"), hasA?1:0);
     gl.uniform1i(gl.getUniformLocation(prog,"uHasB"), hasB?1:0);
-    gl.uniform1i(gl.getUniformLocation(prog,"uUseAasB"), $("useAasB").checked ? 1 : 0);
 
-    gl.uniform1i(gl.getUniformLocation(prog,"uBlendMode"), blendModeToInt($("fxBlend").value));
-    gl.uniform1f(gl.getUniformLocation(prog,"uBOpacity"), parseFloat($("fxBOpacity").value));
-    gl.uniform1f(gl.getUniformLocation(prog,"uInvB"), parseFloat($("fxInvB").value));
+    // In Link FX mode, treat B as unused (so Mix ≈ A)
+    const linkFxMode = (currentMode==="links" && linkFxEnabled);
+    gl.uniform1i(gl.getUniformLocation(prog,"uUseAasB"), linkFxMode ? 0 : ($("useAasB").checked ? 1 : 0));
+
+    gl.uniform1i(gl.getUniformLocation(prog,"uBlendMode"), linkFxMode ? 0 : blendModeToInt($("fxBlend").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uBOpacity"), linkFxMode ? 0.0 : parseFloat($("fxBOpacity").value));
+    gl.uniform1f(gl.getUniformLocation(prog,"uInvB"), linkFxMode ? 0.0 : parseFloat($("fxInvB").value));
+
     gl.uniform1f(gl.getUniformLocation(prog,"uExposure"), parseFloat($("fxExposure").value));
     gl.uniform1f(gl.getUniformLocation(prog,"uContrast"), parseFloat($("fxContrast").value));
     gl.uniform1f(gl.getUniformLocation(prog,"uSat"), parseFloat($("fxSat").value));
 
-    gl.uniform1i(gl.getUniformLocation(prog,"uAFlipH"), $("aFlipH").checked?1:0);
-    gl.uniform1i(gl.getUniformLocation(prog,"uAFlipV"), $("aFlipV").checked?1:0);
-    gl.uniform1i(gl.getUniformLocation(prog,"uARot"), rotToQ($("aRot").value));
+    // For Link FX mode, we want A untransformed (it is already stage-sized).
+    gl.uniform1i(gl.getUniformLocation(prog,"uAFlipH"), linkFxMode ? 0 : ($("aFlipH").checked?1:0));
+    gl.uniform1i(gl.getUniformLocation(prog,"uAFlipV"), linkFxMode ? 0 : ($("aFlipV").checked?1:0));
+    gl.uniform1i(gl.getUniformLocation(prog,"uARot"), linkFxMode ? 0 : rotToQ($("aRot").value));
     gl.uniform3f(gl.getUniformLocation(prog,"uACrop"),
-      parseFloat($("aCx").value), parseFloat($("aCy").value), parseFloat($("aZoom").value));
+      linkFxMode ? 0.5 : parseFloat($("aCx").value),
+      linkFxMode ? 0.5 : parseFloat($("aCy").value),
+      linkFxMode ? 1.0 : parseFloat($("aZoom").value)
+    );
 
     gl.uniform1i(gl.getUniformLocation(prog,"uBFlipH"), $("bFlipH").checked?1:0);
     gl.uniform1i(gl.getUniformLocation(prog,"uBFlipV"), $("bFlipV").checked?1:0);
@@ -1800,7 +2041,33 @@ function tick(t){
     gl.viewport(0,0,w,h);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   }
+
   requestAnimationFrame(tick);
+}
+
+/* =========================
+   Link FX toggle handler
+========================= */
+function setLinkFxEnabled(on){
+  linkFxEnabled = !!on;
+  $("linkFxEnable").checked = linkFxEnabled;
+  $("linkFxBadge").style.display = (currentMode==="links" && linkFxEnabled) ? "inline-flex" : "none";
+
+  // Stop any capture overlay if we are in links
+  setMode("links");
+
+  // If enabling: we need to mount all layers as Invidious videos (and hide iframes)
+  // If disabling: revert to iframes
+  (async ()=>{
+    // Force refetch on enable (instance changes etc)
+    for (let i=0;i<linkLayerCount;i++){
+      linkVideoSrc[i] = null;
+      await mountLinkSource(i);
+    }
+    $("status").textContent = linkFxEnabled
+      ? "Status: Link FX enabled (if black, CORS blocked — toggle off)"
+      : "Status: Link FX disabled (iframe mixer)";
+  })();
 }
 
 /* =========================
@@ -1814,10 +2081,18 @@ document.addEventListener("DOMContentLoaded", async ()=>{
   initDefaultDecks();
   renderDecks();
 
-  rebuildLinkLayers();
+  await rebuildLinkLayers();
   setMode("links");
   hookRangeReadouts();
-  rebuildStageOverlayButtons();
+  renderQuickRandomButtons();
+
+  $("linkFxEnable").addEventListener("change", ()=>{
+    if ($("linkFxEnable").checked && linkLayerCount > 5 && !linkFxWarned){
+      linkFxWarned = true;
+      $("status").textContent = "Status: Link FX supports up to 5 layers";
+    }
+    setLinkFxEnabled($("linkFxEnable").checked);
+  });
 
   // Preload default decks so random works immediately
   $("deckStatus").textContent = "Decks: loading defaults…";
@@ -1827,15 +2102,11 @@ document.addEventListener("DOMContentLoaded", async ()=>{
   renderDecks();
   $("deckStatus").textContent = "Decks: loaded defaults";
 
-  // ✅ NEW: On default Link Mixer (2 layers), auto-load RANDOM from Trippy deck
-  if (decks[DEFAULT_DECK_KEY]?.items?.length) {
-    for (let i=0;i<linkLayerCount;i++){
-      linkLayers[i].auto.deckKey = DEFAULT_DECK_KEY;
-      pickRandomIntoLayer(i);
-    }
-    $("status").textContent = `Status: loaded random "${decks[DEFAULT_DECK_KEY].name}" → ${linkLayerCount} layers`;
-  } else {
-    $("status").textContent = "Status: defaults loaded (trippy deck empty — using fallback links)";
+  // Default startup: 2 layers random from Trippy deck
+  // (If user adds layers later, they can hit Random → All)
+  $("randomAllDeck").value = "trippy";
+  if (linkLayerCount === 2){
+    randomizeAllLayers();
   }
 
   requestAnimationFrame(tick);
