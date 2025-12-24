@@ -59,7 +59,7 @@
       background:rgba(0,0,0,.35);
       border-radius:18px;
       padding:14px 16px;
-      max-width:520px;
+      max-width:560px;
       box-shadow: 0 20px 80px rgba(0,0,0,.35);
     }
     .fxLoading .big{font-weight:800;letter-spacing:.3px;margin-bottom:6px}
@@ -153,6 +153,8 @@
       padding:6px 10px;border-radius:999px;
       background:rgba(255,255,255,.02);
     }
+    a.playlistLink{color:var(--text); text-decoration:none; border-bottom:1px dashed rgba(255,255,255,.25)}
+    a.playlistLink:hover{border-bottom-color:rgba(122,162,255,.75)}
   </style>
 </head>
 <body>
@@ -170,6 +172,7 @@
         <button id="tabLinks" class="active">Link Mixer</button>
         <button id="tabFX">FX Capture</button>
       </div>
+      <button id="btnFullscreen" class="primary">Fullscreen Stage</button>
       <button id="btnToggleControls">Show Controls</button>
     </div>
   </div>
@@ -182,7 +185,7 @@
         <div class="big">FX Capture: waiting for capture…</div>
         <div class="small">
           Click <b>Capture A</b> (and optionally <b>Capture B</b>) in Controls.<br/>
-          (Chrome’s sharing banner can’t be hidden by a webpage.)
+          <span style="opacity:.95">Note: Chrome’s “Sharing…” banner cannot be hidden by a webpage.</span>
         </div>
       </div>
     </div>
@@ -229,7 +232,7 @@
             </div>
           </div>
 
-          <!-- RIGHT SIDE: DECKS + WHY -->
+          <!-- RIGHT SIDE: DECKS -->
           <div class="card">
             <div class="cardHead"><div class="cardTitle">Video Decks (playlist thumbnails → send to layers)</div></div>
             <div class="cardBody">
@@ -242,15 +245,11 @@
                   <label>Send clicked thumbnail to layer
                     <select id="deckTargetLayer"></select>
                   </label>
-                  <label>Invidious base (if one fails, swap)
+                  <label>Invidious base (default: inv.nadeko.net)
                     <select id="invBase">
-                      <option value="https://inv.nadecko.net" selected>https://inv.nadecko.net</option>
-                      <option value="https://inv.nadeko.net">https://inv.nadeko.net</option>
+                      <option value="https://inv.nadeko.net" selected>https://inv.nadeko.net</option>
                       <option value="https://yewtu.be">https://yewtu.be</option>
-                      <option value="https://inv.nadeko.net">https://inv.nadeko.net</option>
-                      <option value="https://inv.nadeko.net">https://inv.nadeko.net</option>
-                      <option value="https://inv.nadeko.net">https://inv.nadeko.net</option>
-                      <option value="https://inv.nadeko.net">https://inv.nadeko.net</option>
+                      <option value="https://inv.nadecko.net">https://inv.nadecko.net</option>
                     </select>
                   </label>
                 </div>
@@ -266,6 +265,22 @@
                 </div>
 
                 <div class="row">
+                  <label>Thumbnails to display (per deck)
+                    <select id="thumbCount">
+                      <option value="24">24</option>
+                      <option value="48" selected>48</option>
+                      <option value="96">96</option>
+                      <option value="200">200</option>
+                      <option value="999999">All</option>
+                    </select>
+                  </label>
+                  <label class="toggle" style="align-self:end">
+                    <input id="thumbShuffle" type="checkbox" checked>
+                    Shuffle thumbnails (visual)
+                  </label>
+                </div>
+
+                <div class="row">
                   <label>Random → All Layers source deck
                     <select id="randomAllDeck"></select>
                   </label>
@@ -276,7 +291,7 @@
 
                 <div class="row">
                   <span class="pill" id="deckStatus">Decks: not loaded</span>
-                  <span class="pill">Click a thumbnail → pushes that video to the selected layer</span>
+                  <span class="pill">Click a thumbnail → pushes that video to selected layer</span>
                 </div>
               </div>
 
@@ -313,7 +328,12 @@
             </div>
             <div class="cardBody">
               <div class="small">
-                “Auto-fit” matches crop to the captured source aspect ratio. It can’t detect the exact player-area inside the tab UI.
+                Suggested playlists to open in a separate tab (then share that tab/window):
+                <div style="margin-top:8px;display:grid;gap:6px">
+                  <a class="playlistLink" href="https://www.youtube.com/watch?v=sLkwdr74FVI&list=PLuyTQuSXZ5EUeHHskJJmWqicuyKJK4kc2" target="_blank" rel="noreferrer">Trippy Visuals playlist</a>
+                  <a class="playlistLink" href="https://www.youtube.com/watch?v=2lBjRpRtQjY&list=PL1ZB2TfCq41TxhYoCOeYiwONkig6Lt_C3" target="_blank" rel="noreferrer">Old Cartoons playlist</a>
+                  <a class="playlistLink" href="https://www.youtube.com/watch?v=0tJ_KhgI4TY&list=PLxqMsrhM_WC25QOMHMQp-Cm9k6nfc_vPu" target="_blank" rel="noreferrer">Old Commercials playlist</a>
+                </div>
               </div>
 
               <div class="card" style="background:rgba(255,255,255,.01)">
@@ -586,6 +606,24 @@ $("btnToggleControls").addEventListener("click", ()=>{
 controls.classList.remove("open");
 $("btnToggleControls").textContent = "Show Controls";
 
+/* Fullscreen stage */
+const stageEl = $("stage");
+function isFullscreen(){
+  return document.fullscreenElement === stageEl;
+}
+async function toggleFullscreen(){
+  try{
+    if (!isFullscreen()) await stageEl.requestFullscreen({navigationUI:"hide"});
+    else await document.exitFullscreen();
+  }catch(e){}
+}
+$("btnFullscreen").addEventListener("click", toggleFullscreen);
+document.addEventListener("fullscreenchange", ()=>{
+  $("btnFullscreen").textContent = isFullscreen() ? "Exit Fullscreen" : "Fullscreen Stage";
+  // make sure canvas fits immediately
+  resizeCanvas();
+});
+
 /* =========================
    Slider numeric readouts
 ========================= */
@@ -636,7 +674,7 @@ const decks = {}; // key -> {name,url,listId,items:[{videoId,title,thumb}]}
 let DEFAULT_DECK_KEY = "trippy";
 
 function getInvidiousBase(){
-  return ($("invBase")?.value || "https://inv.nadecko.net").replace(/\/+$/,'');
+  return ($("invBase")?.value || "https://inv.nadeko.net").replace(/\/+$/,'');
 }
 function extractPlaylistId(anyUrl){
   if (!anyUrl) return null;
@@ -651,7 +689,6 @@ function extractPlaylistId(anyUrl){
   return null;
 }
 function deckThumbUrl(videoId){
-  // Force YouTube thumb CDN (stable across Invidious instances)
   return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 }
 async function fetchPlaylistAllVideos(listId){
@@ -667,10 +704,7 @@ async function fetchPlaylistAllVideos(listId){
     for (const v of vids){
       const vid = v.videoId || v.video_id || v.id;
       if (!vid) continue;
-      out.push({
-        videoId: vid,
-        title: v.title || ""
-      });
+      out.push({ videoId: vid, title: v.title || "" });
     }
   }
   const seen = new Set();
@@ -688,7 +722,6 @@ function addDeck(key, name, url){
 function initDefaultDecks(){
   DEFAULT_DECKS.forEach(d=>addDeck(d.key, d.name, d.url));
 }
-
 async function loadDeck(key){
   const D = decks[key];
   if (!D || !D.listId) return;
@@ -698,7 +731,7 @@ async function loadDeck(key){
     D.items = items.map(it=>({
       videoId: it.videoId,
       title: it.title || it.videoId,
-      thumb: deckThumbUrl(it.videoId) // FORCE stable thumbs
+      thumb: deckThumbUrl(it.videoId)
     }));
     $("deckStatus").textContent = `Decks: loaded "${D.name}" (${D.items.length} videos)`;
   }catch(e){
@@ -708,15 +741,23 @@ async function loadDeck(key){
   }
 }
 
+/* util: shuffle copy */
+function shuffledCopy(arr){
+  const a = arr.slice();
+  for (let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
 function refreshDeckDropdowns(){
-  // randomAllDeck
   const randSel = $("randomAllDeck");
   if (randSel){
     const cur = randSel.value || DEFAULT_DECK_KEY;
     randSel.innerHTML = Object.keys(decks).map(k=>`<option value="${k}">${decks[k].name}</option>`).join("");
     randSel.value = decks[cur] ? cur : DEFAULT_DECK_KEY;
   }
-  // per-layer auto deck selects already in DOM
   document.querySelectorAll(`select[data-f="autoDeck"]`).forEach(sel=>{
     const i = parseInt(sel.getAttribute("data-i"),10);
     const L = linkLayers[i];
@@ -740,6 +781,10 @@ function updateDeckTargetLayerOptions(){
 function renderDecks(){
   const wrap = $("deckList");
   wrap.innerHTML = "";
+
+  const limit = parseInt($("thumbCount").value,10) || 48;
+  const doShuffle = $("thumbShuffle").checked;
+
   Object.keys(decks).forEach(key=>{
     const D = decks[key];
     const el = document.createElement("div");
@@ -761,7 +806,9 @@ function renderDecks(){
     const grid = el.querySelector(`#thumbGrid_${key}`);
     if (Array.isArray(D.items) && D.items.length){
       grid.innerHTML = "";
-      const show = D.items.slice(0, 24);
+      const itemsForDisplay = doShuffle ? shuffledCopy(D.items) : D.items;
+      const show = (limit >= 999999) ? itemsForDisplay : itemsForDisplay.slice(0, limit);
+
       for (const it of show){
         const t = document.createElement("div");
         t.className = "thumb";
@@ -775,16 +822,18 @@ function renderDecks(){
           >
           <div class="cap">${it.title || it.videoId}</div>
         `;
-        t.addEventListener("click", ()=>pushVideoToLayer(it.videoId, null)); // null => use deckTargetLayer UI
+        t.addEventListener("click", ()=>pushVideoToLayer(it.videoId, null));
         grid.appendChild(t);
       }
-      if (D.items.length > show.length){
-        const more = document.createElement("div");
-        more.className = "small";
-        more.style.gridColumn = "1/-1";
-        more.textContent = `Showing ${show.length} thumbnails (deck contains ${D.items.length}). Random uses the full list.`;
-        grid.appendChild(more);
-      }
+
+      const note = document.createElement("div");
+      note.className = "small";
+      note.style.gridColumn = "1/-1";
+      note.textContent =
+        (limit >= 999999)
+          ? `Showing ALL thumbnails (${D.items.length}). Random uses the full list.`
+          : `Showing ${show.length} thumbnails (deck contains ${D.items.length}). Random uses the full list.`;
+      grid.appendChild(note);
     }
   });
 
@@ -834,6 +883,9 @@ $("reloadAllDecks").addEventListener("click", async ()=>{
 $("invBase").addEventListener("change", ()=>{
   $("deckStatus").textContent = "Decks: switched Invidious base (reload decks)";
 });
+
+$("thumbCount").addEventListener("change", renderDecks);
+$("thumbShuffle").addEventListener("change", renderDecks);
 
 function pickRandomFromDeck(key){
   const D = decks[key];
@@ -1083,8 +1135,8 @@ function rebuildLinkLayers(){
   rebuildLinkUI();
 }
 
-$("addLayer").addEventListener("click", ()=>{ if (linkLayerCount<5){ linkLayerCount++; rebuildLinkLayers(); }});
-$("removeLayer").addEventListener("click", ()=>{ if (linkLayerCount>2){ linkLayerCount--; rebuildLinkLayers(); }});
+$("addLayer").addEventListener("click", ()=>{ if (linkLayerCount<5){ linkLayerCount++; rebuildLinkLayers(); renderDecks(); }});
+$("removeLayer").addEventListener("click", ()=>{ if (linkLayerCount>2){ linkLayerCount--; rebuildLinkLayers(); renderDecks(); }});
 $("reloadLinks").addEventListener("click", ()=>{ for (let i=0;i<linkLayerCount;i++){ mountLinkIframe(i); applyLinkStyle(i);} });
 $("tapUI").addEventListener("change", ()=>{ for (let i=0;i<linkLayerCount;i++) applyLinkStyle(i); });
 $("loopVideos").addEventListener("change", ()=>{ for (let i=0;i<linkLayerCount;i++) mountLinkIframe(i); });
@@ -1108,18 +1160,9 @@ $("layerList").addEventListener("input", (e)=>{
   if (f==="cy") L.ui.cy=parseFloat(t.value);
   if (f==="zoom") L.ui.zoom=parseFloat(t.value);
 
-  if (f==="autoOn") {
-    L.auto.on = t.checked;
-    syncLayerAuto(i);
-  }
-  if (f==="autoSec") {
-    L.auto.ms = Math.max(5000, parseInt(t.value,10)*1000);
-    syncLayerAuto(i);
-  }
-  if (f==="autoDeck") {
-    L.auto.deckKey = t.value;
-    syncLayerAuto(i);
-  }
+  if (f==="autoOn") { L.auto.on = t.checked; syncLayerAuto(i); }
+  if (f==="autoSec") { L.auto.ms = Math.max(5000, parseInt(t.value,10)*1000); syncLayerAuto(i); }
+  if (f==="autoDeck") { L.auto.deckKey = t.value; syncLayerAuto(i); }
 
   applyLinkStyle(i);
 });
@@ -1129,13 +1172,8 @@ $("layerList").addEventListener("click", (e)=>{
   if (!btn) return;
   const i=parseInt(btn.getAttribute("data-i"),10);
   const act = btn.getAttribute("data-act");
-  if (act==="apply"){
-    mountLinkIframe(i);
-    applyLinkStyle(i);
-  }
-  if (act==="pickRandom"){
-    pickRandomIntoLayer(i);
-  }
+  if (act==="apply"){ mountLinkIframe(i); applyLinkStyle(i); }
+  if (act==="pickRandom"){ pickRandomIntoLayer(i); }
 });
 
 /* =========================
@@ -1204,7 +1242,7 @@ $("fitA").addEventListener("click", ()=>autoFit("A"));
 $("fitB").addEventListener("click", ()=>autoFit("B"));
 
 /* =========================
-   WebGL pipeline (targeting fixed)
+   WebGL pipeline (targets fixed)
 ========================= */
 const canvas=$("fxOut");
 let gl=null, prog=null, quadVBO=null;
@@ -1263,13 +1301,11 @@ uniform float uExposure;
 uniform float uContrast;
 uniform float uSat;
 
-// Transform + crop per source
 uniform int uAFlipH; uniform int uAFlipV; uniform int uARot;
-uniform vec3 uACrop; // cx, cy, zoom
+uniform vec3 uACrop;
 uniform int uBFlipH; uniform int uBFlipV; uniform int uBRot;
-uniform vec3 uBCrop; // cx, cy, zoom
+uniform vec3 uBCrop;
 
-// FX toggles
 uniform int uFeedbackOn;
 uniform float uFbAmt;
 uniform float uFbZoom;
@@ -1295,7 +1331,6 @@ uniform float uScanAmt;
 uniform int uVigOn;
 uniform float uVigAmt;
 
-// FX targets: 0=A, 1=B, 2=Mix, 3=Final
 uniform int uFeedbackT;
 uniform int uKaleidoT;
 uniform int uRGBT;
