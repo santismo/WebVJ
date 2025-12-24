@@ -2,4 +2,4 @@
 
 https://santismo.github.io/iVJ/
 
-big thanks to inv.nadeko.net
+Works best in Google Chrome
