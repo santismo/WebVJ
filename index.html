@@ -295,6 +295,12 @@
                       <option value="off">off</option>
                     </select>
                   </label>
+                  <label>Playback mode
+                    <select id="playbackMode">
+                      <option value="embed" selected>YouTube embed</option>
+                      <option value="direct">Direct video (FX-friendly)</option>
+                    </select>
+                  </label>
                 </div>
               </div>
             </details>
@@ -306,8 +312,18 @@
                 <div class="miniBtns">
                   <button id="capA" class="primary">Capture A</button>
                   <button id="capB" class="primary">Capture B</button>
+                  <button id="capMix" class="primary">Capture Mix</button>
                   <button id="stopCap">Stop</button>
                 </div>
+                <div class="row">
+                  <label>FX source
+                    <select id="fxSource">
+                      <option value="capture" selected>Capture (screen/tab)</option>
+                      <option value="layers">Layers 1+2 (direct)</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="small">Direct mode uses Layer 1+2 video (requires Direct playback).</div>
 
                 <details class="menu" id="fxCaptureXform" open>
                   <summary>Capture Transform</summary>
@@ -679,7 +695,7 @@ const BLENDS = [
 ];
 
 let linkLayerCount = 2;
-const linkLayers = []; // {el, iframe, url, ui, auto}
+const linkLayers = []; // {el, iframe, video, url, ui, auto}
 let layerAutoTimers = new Map();
 
 function fillBlendOptions(sel, def="difference"){
@@ -707,6 +723,11 @@ function buildEmbedSrc(videoId){
   return `https://www.youtube.com/embed/${videoId}?playsinline=1&autoplay=1&mute=1&controls=0&rel=0&modestbranding=1&iv_load_policy=3&fs=0&disablekb=1&enablejsapi=1&origin=${origin}${loopPart}`;
 }
 
+function buildDirectSrc(videoId){
+  const base = getInvidiousBase();
+  return `${base}/latest_version?id=${encodeURIComponent(videoId)}&itag=18&local=true`;
+}
+
 function makeLinkLayer(i){
   const el = document.createElement("div");
   el.className = "layer";
@@ -718,10 +739,21 @@ function makeLinkLayer(i){
 function mountLinkIframe(i){
   const L = linkLayers[i];
   const vid = extractVideoId(L.url);
-  if (!vid){ L.el.innerHTML=""; L.iframe=null; return; }
-  const src = buildEmbedSrc(vid);
-  L.el.innerHTML = `<iframe data-layer="${i}" allow="autoplay; encrypted-media; picture-in-picture" src="${src}"></iframe>`;
-  L.iframe = L.el.querySelector("iframe");
+  if (!vid){ L.el.innerHTML=""; L.iframe=null; L.video=null; return; }
+  if ($("playbackMode").value === "direct"){
+    const src = buildDirectSrc(vid);
+    const loopOn = $("loopVideos").value === "on";
+    L.el.innerHTML = `<video data-layer="${i}" playsinline muted autoplay ${loopOn ? "loop" : ""} crossorigin="anonymous"></video>`;
+    L.video = L.el.querySelector("video");
+    L.video.src = src;
+    L.video.play().catch(()=>{});
+    L.iframe = null;
+  }else{
+    const src = buildEmbedSrc(vid);
+    L.el.innerHTML = `<iframe data-layer="${i}" allow="autoplay; encrypted-media; picture-in-picture" src="${src}"></iframe>`;
+    L.iframe = L.el.querySelector("iframe");
+    L.video = null;
+  }
 }
 
 function applyLinkStyle(i){
@@ -755,8 +787,18 @@ function ytCommand(i, cmd){
     );
   }catch(e){}
 }
-function playLayer(i){ ytCommand(i,"playVideo"); $("status").textContent=`Status: play L${i+1}`; }
-function pauseLayer(i){ ytCommand(i,"pauseVideo"); $("status").textContent=`Status: pause L${i+1}`; }
+function playLayer(i){
+  const L = linkLayers[i];
+  if (L?.video){ L.video.play().catch(()=>{}); }
+  else { ytCommand(i,"playVideo"); }
+  $("status").textContent=`Status: play L${i+1}`;
+}
+function pauseLayer(i){
+  const L = linkLayers[i];
+  if (L?.video){ L.video.pause(); }
+  else { ytCommand(i,"pauseVideo"); }
+  $("status").textContent=`Status: pause L${i+1}`;
+}
 
 function stopAllLayerAuto(){
   for (const [i, timer] of layerAutoTimers.entries()) clearInterval(timer);
@@ -1151,9 +1193,10 @@ function rebuildLinkUI(){
             <div class="miniBtns">
               <button type="button" data-act="capA" data-i="${i}" class="primary">Capture A</button>
               <button type="button" data-act="capB" data-i="${i}" class="primary">Capture B</button>
+              <button type="button" data-act="capMix" data-i="${i}" class="primary">Capture Mix</button>
               <button type="button" data-act="stopCap" data-i="${i}">Stop</button>
             </div>
-            <div class="small">Pick “This Tab” or a window.</div>
+            <div class="small">Pick “This Tab” for Capture Mix, or a window for A/B.</div>
           </div>
         </details>
 
@@ -1232,6 +1275,13 @@ $("removeLayer").addEventListener("click", ()=>{ if (linkLayerCount>2){ linkLaye
 $("reloadLinks").addEventListener("click", ()=>{ for (let i=0;i<linkLayerCount;i++){ mountLinkIframe(i); applyLinkStyle(i);} });
 $("tapUI").addEventListener("change", ()=>{ for (let i=0;i<linkLayerCount;i++) applyLinkStyle(i); });
 $("loopVideos").addEventListener("change", ()=>{ for (let i=0;i<linkLayerCount;i++) mountLinkIframe(i); });
+$("playbackMode").addEventListener("change", ()=>{
+  for (let i=0;i<linkLayerCount;i++){
+    mountLinkIframe(i);
+    applyLinkStyle(i);
+  }
+  updateFxOverlayActive();
+});
 
 /* Layer input sync (range<->number + values) */
 function syncPair(rangeEl, numEl){
@@ -1323,6 +1373,7 @@ $("layerList").addEventListener("click", (e)=>{
   // capture controls inside layer submenu
   if (act==="capA"){ startCapture("A"); }
   if (act==="capB"){ startCapture("B"); }
+  if (act==="capMix"){ startCapture("Mix"); }
   if (act==="stopCap"){ stopCaptureAll(); }
 });
 
@@ -1334,6 +1385,34 @@ const capVideoA=document.createElement("video");
 const capVideoB=document.createElement("video");
 capVideoA.muted=true; capVideoB.muted=true;
 capVideoA.playsInline=true; capVideoB.playsInline=true;
+
+function stopStream(stream){
+  if (!stream) return;
+  for (const tr of stream.getTracks()) tr.stop();
+}
+
+function getLayerVideo(i){
+  return linkLayers[i]?.video || null;
+}
+
+function getFxSourceState(){
+  const mode = $("fxSource").value;
+  if (mode === "layers"){
+    const videoA = getLayerVideo(0);
+    const videoB = getLayerVideo(1);
+    const hasA = !!videoA && videoA.readyState >= 2;
+    const hasB = !!videoB && videoB.readyState >= 2;
+    return { active: hasA || hasB, videoA, videoB, hasA, hasB };
+  }
+  const hasA = !!capStreamA && capVideoA.readyState >= 2;
+  const hasB = !!capStreamB && capVideoB.readyState >= 2;
+  return { active: !!capStreamA || !!capStreamB, videoA: capVideoA, videoB: capVideoB, hasA, hasB };
+}
+
+function updateFxOverlayActive(){
+  const { active } = getFxSourceState();
+  setFxOverlayActive(active);
+}
 
 function setFxOverlayActive(active){
   $("fxOut").style.display = active ? "block" : "none";
@@ -1349,36 +1428,48 @@ async function startCapture(which){
   try{
     const stream = await navigator.mediaDevices.getDisplayMedia({ video:{ frameRate:60 }, audio:false });
     if (which==="A"){
+      stopStream(capStreamA);
       capStreamA=stream; capVideoA.srcObject=stream; await capVideoA.play();
       // default fix for upside-down
       $("flipYA").checked = true;
-    }else{
+    }else if (which==="B"){
+      stopStream(capStreamB);
       capStreamB=stream; capVideoB.srcObject=stream; await capVideoB.play();
       // default fix for upside-down
       $("flipYB").checked = true;
+    }else{
+      stopStream(capStreamA);
+      stopStream(capStreamB);
+      capStreamA=stream; capVideoA.srcObject=stream; await capVideoA.play();
+      capStreamB=null; capVideoB.srcObject=null;
+      $("useAasB").checked = true;
     }
     $("status").textContent = `Status: captured ${which}`;
-    setFxOverlayActive(true);
+    updateFxOverlayActive();
   }catch(e){
     $("status").textContent = `Status: capture ${which} canceled/blocked`;
   }
 }
 
 function stopCaptureAll(){
-  for (const s of [capStreamA, capStreamB]){
-    if (!s) continue;
-    for (const tr of s.getTracks()) tr.stop();
-  }
+  stopStream(capStreamA);
+  stopStream(capStreamB);
   capStreamA=null; capStreamB=null;
   capVideoA.srcObject=null; capVideoB.srcObject=null;
 
-  const stillActive = false;
-  setFxOverlayActive(stillActive);
+  updateFxOverlayActive();
   $("status").textContent="Status: capture stopped";
 }
 $("capA").addEventListener("click", ()=>startCapture("A"));
 $("capB").addEventListener("click", ()=>startCapture("B"));
+$("capMix").addEventListener("click", ()=>startCapture("Mix"));
 $("stopCap").addEventListener("click", stopCaptureAll);
+$("fxSource").addEventListener("change", ()=>{
+  updateFxOverlayActive();
+  if ($("fxSource").value === "layers" && $("playbackMode").value !== "direct"){
+    $("status").textContent = "Status: Direct playback required for Layer FX source";
+  }
+});
 
 $("fxAllOff").addEventListener("click", ()=>{
   $("tFeedback").checked=false; $("tKaleido").checked=false; $("tRGB").checked=false;
@@ -1789,15 +1880,18 @@ function updateVideoTexture(tex, video){
 }
 
 function tick(t){
-  const active = !!gl && (capStreamA || capStreamB);
+  const sourceState = getFxSourceState();
+  const active = !!gl && sourceState.active;
   if (active){
     resizeCanvas();
 
-    const hasA = !!capStreamA && capVideoA.readyState>=2;
-    const hasB = !!capStreamB && capVideoB.readyState>=2;
+    const hasA = sourceState.hasA;
+    const hasB = sourceState.hasB;
+    const videoA = sourceState.videoA;
+    const videoB = sourceState.videoB;
 
-    if (hasA) updateVideoTexture(texA, capVideoA);
-    if (hasB) updateVideoTexture(texB, capVideoB);
+    if (hasA && videoA) updateVideoTexture(texA, videoA);
+    if (hasB && videoB) updateVideoTexture(texB, videoB);
 
     gl.useProgram(prog);
     const w=canvas.width, h=canvas.height;
